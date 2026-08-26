@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 from app.shared.models import TimestampMixin
@@ -28,6 +28,7 @@ class Game(Base, TimestampMixin):
         Integer,
         ForeignKey("game_categories.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     title = Column(String, nullable=False)
     description = Column(String, nullable=True)
@@ -51,6 +52,15 @@ class Game(Base, TimestampMixin):
 
 class GameScore(Base, TimestampMixin):
     __tablename__ = "game_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "game_id",
+            "child_id",
+            "session_id",
+            name="uq_game_scores_session",
+        ),
+        Index("ix_game_scores_child_created", "child_id", "created_at"),
+    )
 
     game_id = Column(
         Integer,
@@ -65,12 +75,30 @@ class GameScore(Base, TimestampMixin):
     score = Column(Integer, nullable=False, default=0)
     level = Column(Integer, nullable=False, default=1)
     duration_seconds = Column(Integer, nullable=True)  # durée de la partie
+    session_id = Column(String(64), nullable=True)
+    correct_answers = Column(Integer, nullable=False, default=0)
+    total_questions = Column(Integer, nullable=False, default=0)
+    mistake_count = Column(Integer, nullable=False, default=0)
+    hints_used = Column(Integer, nullable=False, default=0)
+    completed = Column(Boolean, nullable=False, default=True)
+    independent_success = Column(Boolean, nullable=False, default=False)
+    evidence_score = Column(Integer, nullable=False, default=0)
 
     game = relationship("Game", back_populates="scores")
 
 
 class GameProgress(Base, TimestampMixin):
     __tablename__ = "game_progress"
+    __table_args__ = (
+        # Aussi l'index qui sert le lookup (child_id, game_id) fait par
+        # submit_score()/get_child_progress() — un enfant a au plus une
+        # ligne de progression par jeu, la contrainte l'impose en DB.
+        UniqueConstraint(
+            "child_id",
+            "game_id",
+            name="uq_game_progress_child_game",
+        ),
+    )
 
     game_id = Column(
         Integer,
@@ -89,5 +117,9 @@ class GameProgress(Base, TimestampMixin):
     # Seuil pour passer au niveau suivant (CDC : adaptation invisible)
     # L'enfant doit réussir 3 fois de suite avant de monter de niveau
     consecutive_successes = Column(Integer, default=0)
+    mastery_percent = Column(Integer, nullable=False, default=0)
+    independent_streak = Column(Integer, nullable=False, default=0)
+    struggle_streak = Column(Integer, nullable=False, default=0)
+    is_mastered = Column(Boolean, nullable=False, default=False)
 
     game = relationship("Game", back_populates="progress")

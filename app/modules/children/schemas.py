@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Literal, Optional, List
 
 
 # ─── Sensory Profile ────────────────────────────────────────────
@@ -8,6 +8,7 @@ class SensoryProfileBase(BaseModel):
     light_sensitive: bool = False
     color_sensitive: bool = False
     motion_sensitive: bool = False
+    transition_speed: Literal["slow", "normal", "fast"] = "normal"
 
 
 class SensoryProfileCreate(SensoryProfileBase):

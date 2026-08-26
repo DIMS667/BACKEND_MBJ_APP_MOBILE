@@ -1,7 +1,10 @@
 from fastapi import WebSocket
 from typing import Dict, List
 import json
+import logging
 from datetime import datetime
+
+logger = logging.getLogger("app.websocket")
 
 
 class ConnectionManager:
@@ -20,8 +23,10 @@ class ConnectionManager:
         if child_id not in self.active_connections:
             self.active_connections[child_id] = []
         self.active_connections[child_id].append(websocket)
-        print(f"🔌 WS connecté — child_id={child_id} "
-              f"({len(self.active_connections[child_id])} connexion(s))")
+        logger.debug(
+            "WS connecté — child_id=%s (%d connexion(s))",
+            child_id, len(self.active_connections[child_id]),
+        )
 
     def disconnect(self, websocket: WebSocket, child_id: int) -> None:
         """Supprime une connexion fermée."""
@@ -29,7 +34,7 @@ class ConnectionManager:
             self.active_connections[child_id].remove(websocket)
             if not self.active_connections[child_id]:
                 del self.active_connections[child_id]
-        print(f"🔌 WS déconnecté — child_id={child_id}")
+        logger.debug("WS déconnecté — child_id=%s", child_id)
 
     async def send_to_child(self, child_id: int, event: dict) -> None:
         """

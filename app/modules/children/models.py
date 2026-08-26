@@ -7,7 +7,7 @@ from app.shared.models import TimestampMixin
 class Child(Base, TimestampMixin):
     __tablename__ = "children"
 
-    parent_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    parent_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     first_name = Column(String, nullable=False)
     age = Column(Integer, nullable=False)
     photo_url = Column(String, nullable=True)
@@ -36,6 +36,7 @@ class SensoryProfile(Base, TimestampMixin):
     light_sensitive = Column(Boolean, default=False)
     color_sensitive = Column(Boolean, default=False)
     motion_sensitive = Column(Boolean, default=False)
+    transition_speed = Column(String, default="normal", nullable=False)
 
     child = relationship("Child", back_populates="sensory_profile")
 

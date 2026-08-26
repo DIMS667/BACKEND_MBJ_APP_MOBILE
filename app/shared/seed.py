@@ -3,7 +3,7 @@ import os
 import httpx
 from gtts import gTTS
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from app.database import AsyncSessionLocal
 from app.config import settings
 
@@ -14,7 +14,8 @@ from app.modules.communication.models import FavoritePicto, SentenceHistory   # 
 from app.modules.emotions.models import Emotion, CalmingActivity              # noqa
 from app.modules.routines.models import Routine, RoutineStep, RoutineSession  # noqa
 from app.modules.games.models import GameCategory, Game                       # noqa
-from app.modules.stories.models import Story, StoryPage                       # noqa
+from app.modules.stories.models import Story, StoryChoice, StoryPage          # noqa
+from app.modules.stories.story_catalog import STORIES_SPRINT_1_DATA           # noqa
 from app.modules.audio.models import AudioCategory, AudioFile                 # noqa
 
 
@@ -52,20 +53,88 @@ SEED_DATA = {
 }
 
 EMOTIONS_DATA = [
-    {"name": "joie",      "color": "#FFD700", "is_positive": True,  "icon_url": "https://static.arasaac.org/pictograms/35547/35547_300.png"},
-    {"name": "tristesse", "color": "#87CEEB", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35545/35545_300.png"},
-    {"name": "colère",    "color": "#FF6B6B", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35567/35567_300.png"},
-    {"name": "peur",      "color": "#9B59B6", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/10261/10261_300.png"},
-    {"name": "fatigue",   "color": "#95A5A6", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35537/35537_300.png"},
-    {"name": "stress",    "color": "#E67E22", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35529/35529_300.png"},
-    {"name": "calme",     "color": "#81C784", "is_positive": True,  "icon_url": "https://static.arasaac.org/pictograms/31310/31310_300.png"},
+    {"name": "joie",      "color": "#F7E3B0", "is_positive": True,  "icon_url": "https://static.arasaac.org/pictograms/35547/35547_300.png"},
+    {"name": "tristesse", "color": "#C9D8E6", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35545/35545_300.png"},
+    {"name": "colère",    "color": "#E5C3BB", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35567/35567_300.png"},
+    {"name": "peur",      "color": "#D8CFE6", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35571/35571_300.png"},
+    {"name": "fatigue",   "color": "#DCD3CB", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35537/35537_300.png"},
+    {"name": "stress",    "color": "#DFCBD9", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35529/35529_300.png"},
+    {"name": "calme",     "color": "#C9DFD8", "is_positive": True,  "icon_url": "https://static.arasaac.org/pictograms/31310/31310_300.png"},
 ]
 
 CALMING_ACTIVITIES_DATA = [
-    {"name": "Respiration douce",   "type": "breathing",  "description": "Inspire doucement pendant 4 secondes, souffle pendant 6 secondes.", "duration_seconds": 120},
-    {"name": "Musique apaisante",   "type": "music",      "description": "Une mélodie douce pour se calmer.",                                 "duration_seconds": 180},
-    {"name": "Animation relaxante", "type": "animation",  "description": "Suis le mouvement des vagues avec tes yeux.",                       "duration_seconds": 60},
-    {"name": "Jeu calme",           "type": "game",       "description": "Un jeu doux pour détourner l'attention.",                           "duration_seconds": 300},
+    {
+        "name": "Respiration douce",
+        "type": "breathing",
+        "description": "Inspire doucement, puis souffle lentement.",
+        "duration_seconds": 120,
+        "icon_url": "https://static.arasaac.org/pictograms/31310/31310_300.png",
+        "display_order": 1,
+        "is_active": True,
+    },
+    {
+        "name": "Musique apaisante",
+        "type": "music",
+        "description": "Écoute une mélodie douce à ton rythme.",
+        "duration_seconds": 180,
+        "icon_url": "https://static.arasaac.org/pictograms/24791/24791_300.png",
+        "display_order": 2,
+        "is_active": True,
+    },
+    {
+        "name": "Animation relaxante",
+        "type": "animation",
+        "description": "Regarde le mouvement calme aussi longtemps que tu veux.",
+        "duration_seconds": 60,
+        "icon_url": "https://static.arasaac.org/pictograms/31310/31310_300.png",
+        "display_order": 3,
+        "is_active": True,
+    },
+    {
+        "name": "Jeu calme",
+        "type": "game",
+        "description": "Choisis un jeu doux, sans limite de temps.",
+        "duration_seconds": 300,
+        "icon_url": "https://static.arasaac.org/pictograms/23392/23392_300.png",
+        "display_order": 4,
+        "is_active": True,
+    },
+    {
+        "name": "Presser mes mains",
+        "type": "sensory",
+        "description": "Presse tes mains, puis relâche doucement.",
+        "duration_seconds": 60,
+        "icon_url": None,
+        "display_order": 5,
+        "is_active": True,
+    },
+    {
+        "name": "Bouger doucement",
+        "type": "movement",
+        "description": "Étire ou balance ton corps doucement.",
+        "duration_seconds": 90,
+        "icon_url": None,
+        "display_order": 6,
+        "is_active": True,
+    },
+    {
+        "name": "Regarder autour de moi",
+        "type": "grounding",
+        "description": "Regarde tranquillement les choses autour de toi.",
+        "duration_seconds": 60,
+        "icon_url": None,
+        "display_order": 7,
+        "is_active": True,
+    },
+    {
+        "name": "Faire une pause au calme",
+        "type": "quiet",
+        "description": "Va au calme aussi longtemps que tu veux.",
+        "duration_seconds": 180,
+        "icon_url": None,
+        "display_order": 8,
+        "is_active": True,
+    },
 ]
 
 ROUTINES_DATA = [
@@ -131,6 +200,7 @@ GAMES_DATA = [
         "games": [
             {"title": "Complète la suite", "description": "Complète la suite logique de formes",        "icon_url": "https://static.arasaac.org/pictograms/7141/7141_300.png", "min_level": 1, "max_level": 5},
             {"title": "Classe les objets", "description": "Range les objets dans la bonne catégorie",   "icon_url": "https://static.arasaac.org/pictograms/9813/9813_300.png", "min_level": 1, "max_level": 5},
+            {"title": "Séquence routine", "description": "Remets les étapes du quotidien dans le bon ordre", "icon_url": "https://static.arasaac.org/pictograms/2725/2725_300.png", "min_level": 1, "max_level": 5},
         ]
     },
     {
@@ -239,6 +309,9 @@ STORIES_DATA = [
         ]
     },
 ]
+
+STORIES_DATA = STORIES_SPRINT_1_DATA
+
 
 AUDIO_DATA = [
     {
@@ -430,18 +503,24 @@ async def seed_emotions(db: AsyncSession) -> None:
     print("\n🌱 Seed Emotions...\n")
     for emotion_data in EMOTIONS_DATA:
         result = await db.execute(select(Emotion).where(Emotion.name == emotion_data["name"]))
-        if result.scalar_one_or_none():
-            print(f"   ⏭️  Émotion existante : {emotion_data['name']}")
+        emotion = result.scalar_one_or_none()
+        if emotion is None:
+            db.add(Emotion(**emotion_data))
+            print(f"   😊 Émotion créée : {emotion_data['name']}")
             continue
-        db.add(Emotion(**emotion_data))
-        print(f"   😊 Émotion créée : {emotion_data['name']}")
+        for field, value in emotion_data.items():
+            setattr(emotion, field, value)
+        print(f"   🔄 Émotion mise à jour : {emotion_data['name']}")
     for activity_data in CALMING_ACTIVITIES_DATA:
         result = await db.execute(select(CalmingActivity).where(CalmingActivity.name == activity_data["name"]))
-        if result.scalar_one_or_none():
-            print(f"   ⏭️  Activité existante : {activity_data['name']}")
+        activity = result.scalar_one_or_none()
+        if activity is None:
+            db.add(CalmingActivity(**activity_data))
+            print(f"   🧘 Activité créée : {activity_data['name']}")
             continue
-        db.add(CalmingActivity(**activity_data))
-        print(f"   🧘 Activité créée : {activity_data['name']}")
+        for field, value in activity_data.items():
+            setattr(activity, field, value)
+        print(f"   🔄 Activité mise à jour : {activity_data['name']}")
     await db.commit()
     print("\n🎉 Seed Emotions terminé !\n")
 
@@ -462,11 +541,22 @@ async def seed_routines(db: AsyncSession) -> None:
             if result.scalar_one_or_none():
                 print(f"      ⏭️  Routine existante : {routine_data['title']}")
                 continue
-            routine = Routine(child_id=child.id, title=routine_data["title"], type=routine_data["type"], icon_url=routine_data["icon_url"])
+            routine = Routine(
+                child_id=child.id,
+                title=routine_data["title"],
+                type=routine_data["type"],
+                icon_url=routine_data["icon_url"],
+                is_default=True,
+            )
             db.add(routine)
             await db.flush()
             for step_data in routine_data["steps"]:
-                db.add(RoutineStep(routine_id=routine.id, order=step_data["order"], title=step_data["title"]))
+                db.add(RoutineStep(
+                    routine_id=routine.id,
+                    order=step_data["order"],
+                    title=step_data["title"],
+                    is_default=True,
+                ))
             print(f"      📋 Routine créée : {routine_data['title']}")
     await db.commit()
     print("\n🎉 Seed Routines terminé !\n")
@@ -499,16 +589,49 @@ async def seed_stories(db: AsyncSession) -> None:
     print("\n🌱 Seed Stories...\n")
     for story_data in STORIES_DATA:
         result = await db.execute(select(Story).where(Story.title == story_data["title"]))
-        if result.scalar_one_or_none():
-            print(f"   ⏭️  Histoire existante : {story_data['title']}")
-            continue
-        story = Story(title=story_data["title"], description=story_data["description"], category=story_data["category"], difficulty_level=story_data["difficulty_level"], cover_url=story_data["cover_url"], total_pages=len(story_data["pages"]), is_offline_available=True)
-        db.add(story)
+        story = result.scalar_one_or_none()
+        if story is None:
+            story = Story()
+            db.add(story)
+        story.title = story_data["title"]
+        story.description = story_data["description"]
+        story.category = story_data["category"]
+        story.difficulty_level = story_data["difficulty_level"]
+        story.cover_url = story_data["cover_url"]
+        story.total_pages = len(story_data["pages"])
+        story.is_offline_available = True
+        story.is_custom = False
+        story.owner_id = None
+        story.child_id = None
+        story.client_uuid = None
+        await db.flush()
+        await db.execute(delete(StoryPage).where(StoryPage.story_id == story.id))
         await db.flush()
         for page_data in story_data["pages"]:
             audio_url = _ensure_audio(page_data["text"], f"story_{story.id}_page_{page_data['page_number']}")
-            db.add(StoryPage(story_id=story.id, page_number=page_data["page_number"], text=page_data["text"], image_url=page_data["image_url"], audio_url=audio_url, animation_type=page_data.get("animation_type", "fade")))
-        print(f"   📖 Histoire créée : {story_data['title']} ({len(story_data['pages'])} pages)")
+            page = StoryPage(
+                story_id=story.id,
+                page_number=page_data["page_number"],
+                text=page_data["text"],
+                image_url=page_data.get("image_url"),
+                pictogram_url=page_data.get("pictogram_url"),
+                audio_url=audio_url,
+                animation_type=page_data.get("animation_type", "fade"),
+                next_page_number=page_data.get("next_page_number"),
+            )
+            db.add(page)
+            await db.flush()
+            for choice_data in page_data.get("choices", []):
+                db.add(
+                    StoryChoice(
+                        page_id=page.id,
+                        label=choice_data["label"],
+                        pictogram_url=choice_data.get("pictogram_url"),
+                        next_page_number=choice_data["next_page_number"],
+                        sort_order=choice_data.get("sort_order", 0),
+                    )
+                )
+        print(f"   📖 Histoire synchronisée : {story_data['title']} ({len(story_data['pages'])} pages)")
     await db.commit()
     print("\n🎉 Seed Stories terminé !\n")
 

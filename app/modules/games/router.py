@@ -8,6 +8,7 @@ from .schemas import (
     GameResponse,
     GameScoreCreate,
     GameScoreResponse,
+    GameContentResponse,
     GameProgressResponse,
     SubmitScoreResponse,
     ChildGamesProgressResponse,
@@ -35,6 +36,16 @@ async def get_all_games(
 
 
 # ─── Détail d'un jeu ─────────────────────────────────────────────
+@router.get("/{game_id}/content", response_model=GameContentResponse)
+async def get_game_content(
+    game_id: int,
+    level: int = Query(default=1, ge=1, le=5),
+    challenge_rank: Optional[int] = Query(default=None, ge=1, le=15),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.get_game_content(db, game_id, level, challenge_rank)
+
+
 @router.get("/{game_id}", response_model=GameResponse)
 async def get_game(
     game_id: int,

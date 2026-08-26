@@ -6,6 +6,12 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     pool_pre_ping=True,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    # Rafraîchit les connexions avant qu'un Postgres mutualisé ne les
+    # coupe côté serveur pour inactivité (évite les erreurs "connexion
+    # fermée" sur une connexion restée ouverte trop longtemps dans le pool).
+    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
 
 AsyncSessionLocal = async_sessionmaker(

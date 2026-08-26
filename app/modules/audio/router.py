@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.core.dependencies import get_db
@@ -45,6 +45,7 @@ async def get_file(
 @router.get("/{audio_id}/stream")
 async def stream_audio(
     audio_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    return await service.stream_audio(db, audio_id)
+    return await service.stream_audio(db, audio_id, request)

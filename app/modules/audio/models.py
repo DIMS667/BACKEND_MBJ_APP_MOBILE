@@ -26,6 +26,7 @@ class AudioFile(Base, TimestampMixin):
         Integer,
         ForeignKey("audio_categories.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     title = Column(String, nullable=False)
     file_url = Column(String, nullable=False)

@@ -6,9 +6,12 @@ from app.modules.auth.models import User
 from .schemas import (
     EmotionResponse,
     EmotionRecordCreate,
+    EmotionRecordSync,
     EmotionRecordResponse,
     EmotionStatsResponse,
     CalmingActivityResponse,
+    CalmingFeedbackSync,
+    CalmingFeedbackResponse,
 )
 from . import service
 
@@ -29,6 +32,31 @@ async def record_emotion(
     current_user: User = Depends(get_current_user),
 ):
     return await service.save_emotion(db, data, current_user.id)
+
+
+@router.put("/record/sync", response_model=EmotionRecordResponse)
+async def sync_emotion_record(
+    data: EmotionRecordSync,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.sync_emotion(db, data, current_user.id)
+
+
+@router.put(
+    "/calming-feedback/sync",
+    response_model=CalmingFeedbackResponse,
+)
+async def sync_calming_feedback(
+    data: CalmingFeedbackSync,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.sync_calming_feedback(
+        db,
+        data,
+        current_user.id,
+    )
 
 
 # ─── Historique ──────────────────────────────────────────────────
@@ -60,3 +88,21 @@ async def get_calming_activities(
     db: AsyncSession = Depends(get_db),
 ):
     return await service.get_calming_activities(db, type)
+
+
+@router.get(
+    "/{child_id}/calming-activities",
+    response_model=List[CalmingActivityResponse],
+)
+async def get_personalized_calming_activities(
+    child_id: int,
+    type: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.get_personalized_calming_activities(
+        db,
+        child_id,
+        current_user.id,
+        type,
+    )

@@ -3,9 +3,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
+from app.core.cache import cached
 from app.modules.children.models import Child
 from .models import GameCategory, Game, GameScore, GameProgress
 from .schemas import GameScoreCreate
+from .content_catalog import build_game_content
+from .mastery import (
+    REQUIRED_INDEPENDENT_SUCCESSES,
+    MasteryState,
+    SessionMetrics,
+    evaluate_mastery,
+    learning_status,
+)
 
 
 # ─── Messages bienveillants (CDC : jamais de sanction) ───────────
@@ -17,6 +26,12 @@ SUCCESS_MESSAGES = [
     "C'est parfait ! Tu t'améliores chaque jour ! 🌈",
     "Tu es une vraie star ! 🏆",
     "Magnifique ! Tu es très doué(e) ! 🎊",
+]
+
+ENCOURAGEMENT_MESSAGES = [
+    "Tu as essayé avec courage. On continue doucement ! 🌟",
+    "Bravo d'avoir participé. Chaque essai aide à apprendre ! ⭐",
+    "Tu avances à ton rythme, et c'est très bien. 🌈",
 ]
 
 LEVEL_UP_MESSAGES = [
@@ -32,10 +47,6 @@ REWARD_ANIMATIONS = [
     "hearts_float",     # cœurs flottants
     "flowers_bloom",    # fleurs qui s'ouvrent
 ]
-
-# Nombre de succès consécutifs pour monter de niveau (CDC : adaptation invisible)
-LEVEL_UP_THRESHOLD = 3
-
 
 # ─── Vérifier ownership ──────────────────────────────────────────
 async def _check_child_ownership(
@@ -56,33 +67,41 @@ async def _check_child_ownership(
 
 
 # ─── Catégories ──────────────────────────────────────────────────
+# Catalogue statique (aucune route ne le modifie) : mis en cache pour éviter
+# un aller-retour DB à chaque appel de l'écran "Mes jeux".
 async def get_categories(db: AsyncSession) -> list:
-    result = await db.execute(
-        select(GameCategory).order_by(GameCategory.order)
-    )
-    return list(result.scalars().all())
+    async def _load():
+        result = await db.execute(
+            select(GameCategory).order_by(GameCategory.order)
+        )
+        return list(result.scalars().all())
+    return await cached("games:categories", _load)
 
 
 # ─── Liste des jeux ──────────────────────────────────────────────
 async def get_all_games(db: AsyncSession) -> list:
-    result = await db.execute(
-        select(Game)
-        .options(selectinload(Game.category))
-        .order_by(Game.category_id, Game.id)
-    )
-    return list(result.scalars().all())
+    async def _load():
+        result = await db.execute(
+            select(Game)
+            .options(selectinload(Game.category))
+            .order_by(Game.category_id, Game.id)
+        )
+        return list(result.scalars().all())
+    return await cached("games:all", _load)
 
 
 async def get_games_by_category(
     db: AsyncSession, category_id: int
 ) -> list:
-    result = await db.execute(
-        select(Game)
-        .options(selectinload(Game.category))
-        .where(Game.category_id == category_id)
-        .order_by(Game.id)
-    )
-    return list(result.scalars().all())
+    async def _load():
+        result = await db.execute(
+            select(Game)
+            .options(selectinload(Game.category))
+            .where(Game.category_id == category_id)
+            .order_by(Game.id)
+        )
+        return list(result.scalars().all())
+    return await cached(f"games:by_category:{category_id}", _load)
 
 
 async def get_game_by_id(db: AsyncSession, game_id: int) -> Game:
@@ -100,6 +119,16 @@ async def get_game_by_id(db: AsyncSession, game_id: int) -> Game:
     return game
 
 
+async def get_game_content(
+    db: AsyncSession,
+    game_id: int,
+    level: int,
+    challenge_rank: int | None = None,
+) -> dict:
+    game = await get_game_by_id(db, game_id)
+    return build_game_content(game, level, challenge_rank)
+
+
 # ─── Soumettre un score ──────────────────────────────────────────
 async def submit_score(
     db: AsyncSession,
@@ -111,26 +140,20 @@ async def submit_score(
     
     await _check_child_ownership(db, data.child_id, parent_id)
 
-    # Vérifier que le jeu existe
     game = await get_game_by_id(db, game_id)
+    if data.level < game.min_level or data.level > game.max_level:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Niveau invalide pour ce jeu.",
+        )
 
-    # Enregistrer le score
-    score_record = GameScore(
-        game_id=game_id,
-        child_id=data.child_id,
-        score=data.score,
-        level=data.level,
-        duration_seconds=data.duration_seconds,
-    )
-    db.add(score_record)
-    await db.flush()
-
-    # Récupérer ou créer la progression
+    # The row lock prevents two simultaneous submissions from validating the
+    # same level independently.
     prog_result = await db.execute(
         select(GameProgress).where(
             GameProgress.game_id == game_id,
             GameProgress.child_id == data.child_id,
-        )
+        ).with_for_update()
     )
     progress = prog_result.scalar_one_or_none()
 
@@ -142,60 +165,95 @@ async def submit_score(
             best_score=0,
             total_plays=0,
             consecutive_successes=0,
+            mastery_percent=0,
+            independent_streak=0,
+            struggle_streak=0,
+            is_mastered=False,
         )
         db.add(progress)
         await db.flush()
 
-    # Mettre à jour la progression
+    if data.session_id:
+        existing_result = await db.execute(
+            select(GameScore).where(
+                GameScore.game_id == game_id,
+                GameScore.child_id == data.child_id,
+                GameScore.session_id == data.session_id,
+            )
+        )
+        existing_score = existing_result.scalar_one_or_none()
+        if existing_score:
+            return _score_result(
+                score_record=existing_score,
+                progress=progress,
+                message="Cette partie est déjà enregistrée.",
+            )
+
+    decision = evaluate_mastery(
+        MasteryState(
+            current_level=progress.current_level,
+            mastery_percent=progress.mastery_percent,
+            independent_streak=progress.independent_streak,
+            struggle_streak=progress.struggle_streak,
+            total_plays=progress.total_plays,
+            is_mastered=progress.is_mastered,
+        ),
+        SessionMetrics(
+            played_level=data.level,
+            score=data.score,
+            correct_answers=data.correct_answers,
+            total_questions=data.total_questions,
+            mistake_count=data.mistake_count,
+            hints_used=data.hints_used,
+            completed=data.completed,
+        ),
+        min_level=game.min_level,
+        max_level=game.max_level,
+    )
+
+    score_record = GameScore(
+        game_id=game_id,
+        child_id=data.child_id,
+        score=data.score,
+        level=data.level,
+        duration_seconds=data.duration_seconds,
+        session_id=data.session_id,
+        correct_answers=data.correct_answers,
+        total_questions=data.total_questions,
+        mistake_count=data.mistake_count,
+        hints_used=data.hints_used,
+        completed=data.completed,
+        independent_success=decision.independent_success,
+        evidence_score=decision.evidence_score,
+    )
+    db.add(score_record)
+
     progress.total_plays += 1
-    level_up = False
-
-    # Mettre à jour le meilleur score
-    if data.score > progress.best_score:
-        progress.best_score = data.score
-
-    # Logique de progression de niveau (CDC : adaptation invisible)
-    # Un score > 70% est considéré comme un succès
-    success_threshold = 70
-    is_success = data.score >= success_threshold
-
-    if is_success:
-        progress.consecutive_successes += 1
-        # Monter de niveau après LEVEL_UP_THRESHOLD succès consécutifs
-        if (
-            progress.consecutive_successes >= LEVEL_UP_THRESHOLD
-            and progress.current_level < game.max_level
-        ):
-            progress.current_level += 1
-            progress.consecutive_successes = 0
-            level_up = True
-    else:
-        # Échec discret : on remet le compteur à 0 mais on ne descend PAS
-        # CDC : jamais de sentiment d'échec
-        progress.consecutive_successes = 0
+    progress.best_score = max(progress.best_score, data.score)
+    progress.current_level = decision.current_level
+    progress.mastery_percent = decision.mastery_percent
+    progress.independent_streak = decision.independent_streak
+    progress.struggle_streak = decision.struggle_streak
+    progress.is_mastered = decision.is_mastered
+    # Kept synchronized for backward compatibility with existing dashboards.
+    progress.consecutive_successes = decision.independent_streak
 
     await db.flush()
 
-    # Choisir message et animation
-    if level_up:
-        message = random.choice(LEVEL_UP_MESSAGES)
-    else:
-        message = random.choice(SUCCESS_MESSAGES)
-
+    message = _learning_message(decision)
     reward_animation = random.choice(REWARD_ANIMATIONS)
-
-    result_data = {
-        "score_id": score_record.id,
-        "game_id": game_id,
-        "child_id": data.child_id,
-        "score": data.score,
-        "level": data.level,
-        "best_score": progress.best_score,
-        "current_level": progress.current_level,
-        "level_up": level_up,
-        "message": message,
-        "reward_animation": reward_animation,
-    }
+    result_data = _score_result(
+        score_record=score_record,
+        progress=progress,
+        message=message,
+        reward_animation=reward_animation,
+        independent_success=decision.independent_success,
+        assisted_success=decision.assisted_success,
+        level_up=decision.level_up,
+        level_down=decision.level_down,
+        evidence_score=decision.evidence_score,
+        learning_status_value=decision.learning_status,
+    )
 
     # ── Événement WebSocket ───────────────────────────────────────
     await manager.send_to_child(data.child_id, {
@@ -207,12 +265,82 @@ async def submit_score(
             "score": data.score,
             "best_score": progress.best_score,
             "current_level": progress.current_level,
-            "level_up": level_up,
+            "level_up": decision.level_up,
+            "level_down": decision.level_down,
+            "independent_success": decision.independent_success,
+            "mastery_percent": progress.mastery_percent,
             "message": message,
         }
     })
 
     return result_data
+
+
+def _learning_message(decision) -> str:
+    if decision.level_up:
+        return random.choice(LEVEL_UP_MESSAGES)
+    if decision.is_mastered and decision.independent_success:
+        return "Tu maîtrises ce défi sans aide. Bravo pour ton travail ! 🏆"
+    if decision.independent_success:
+        remaining = max(
+            REQUIRED_INDEPENDENT_SUCCESSES - decision.independent_streak,
+            0,
+        )
+        return (
+            "Mission réussie sans aide ! "
+            f"Encore {remaining} réussite{'s' if remaining > 1 else ''} "
+            "pour valider ce niveau."
+        )
+    if decision.assisted_success:
+        return "Tu as compris avec un indice. Rejoue pour réussir sans aide."
+    if decision.level_down:
+        return "On consolide les bases avant de reprendre le défi suivant."
+    if decision.evidence_score < 45:
+        return random.choice(ENCOURAGEMENT_MESSAGES)
+    return "Tu apprends. Rejoue cette mission pour la réussir avec plus de précision."
+
+
+def _score_result(
+    *,
+    score_record: GameScore,
+    progress: GameProgress,
+    message: str,
+    reward_animation: str = "stars_burst",
+    independent_success: bool = False,
+    assisted_success: bool = False,
+    level_up: bool = False,
+    level_down: bool = False,
+    evidence_score: int | None = None,
+    learning_status_value: str | None = None,
+) -> dict:
+    return {
+        "score_id": score_record.id,
+        "game_id": score_record.game_id,
+        "child_id": score_record.child_id,
+        "score": score_record.score,
+        "level": score_record.level,
+        "best_score": progress.best_score,
+        "current_level": progress.current_level,
+        "level_up": level_up,
+        "level_down": level_down,
+        "independent_success": independent_success,
+        "assisted_success": assisted_success,
+        "mastery_percent": progress.mastery_percent,
+        "independent_streak": progress.independent_streak,
+        "required_independent_successes": REQUIRED_INDEPENDENT_SUCCESSES,
+        "evidence_score": (
+            score_record.evidence_score
+            if evidence_score is None
+            else evidence_score
+        ),
+        "learning_status": learning_status_value or learning_status(
+            progress.mastery_percent,
+            progress.independent_streak,
+            progress.is_mastered,
+        ),
+        "message": message,
+        "reward_animation": reward_animation,
+    }
 
 
 # ─── Progression d'un enfant ─────────────────────────────────────

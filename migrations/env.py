@@ -13,8 +13,37 @@ from alembic import context
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # ─── Importer les modèles pour l'autogenerate ───────────────────────────────
+# Chaque module doit être importé ici pour que ses tables s'enregistrent sur
+# Base.metadata avant que target_metadata ne soit capturé plus bas — sinon
+# `alembic revision --autogenerate` ne voit qu'une partie du schéma et peut
+# proposer de supprimer les tables des modules non importés.
 from app.database import Base
 from app.modules.auth.models import User, RefreshToken  # noqa: F401
+from app.modules.children.models import Child, SensoryProfile, ChildPreferences  # noqa: F401
+from app.modules.communication.models import (  # noqa: F401
+    PictoCategory,
+    Pictogram,
+    SentenceHistory,
+    FavoritePicto,
+    PictogramMedia,
+)
+from app.modules.emotions.models import (  # noqa: F401
+    Emotion,
+    EmotionRecord,
+    CalmingActivity,
+    CalmingActivityFeedback,
+)
+from app.modules.games.models import GameCategory, Game, GameScore, GameProgress  # noqa: F401
+from app.modules.routines.models import Routine, RoutineStep, RoutineSession  # noqa: F401
+from app.modules.stories.models import (  # noqa: F401
+    Story,
+    StoryPage,
+    StoryChoice,
+    StoryProgress,
+    StoryFavorite,
+    StoryMedia,
+)
+from app.modules.audio.models import AudioCategory, AudioFile  # noqa: F401
 
 # ─── Config Alembic ─────────────────────────────────────────────────────────
 config = context.config

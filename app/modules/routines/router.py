@@ -4,8 +4,12 @@ from typing import List
 from app.core.dependencies import get_db, get_current_user
 from app.modules.auth.models import User
 from .schemas import (
-    RoutineCreate, RoutineUpdate,
-    RoutineResponse, ValidateStepResponse,
+    RoutineCreate,
+    RoutineResponse,
+    RoutineStepResponse,
+    RoutineStepSync,
+    RoutineUpdate,
+    ValidateStepResponse,
 )
 from . import service
 
@@ -61,6 +65,25 @@ async def delete_routine(
     current_user: User = Depends(get_current_user),
 ):
     await service.delete_routine(db, routine_id, current_user.id)
+
+
+# ─── Ajouter/synchroniser une étape personnalisée ────────────────
+@router.put(
+    "/{routine_id}/steps/custom/sync",
+    response_model=RoutineStepResponse,
+)
+async def sync_custom_step(
+    routine_id: int,
+    data: RoutineStepSync,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.sync_custom_step(
+        db,
+        routine_id,
+        data,
+        current_user.id,
+    )
 
 
 # ─── Valider une étape ───────────────────────────────────────────

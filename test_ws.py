@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def test_websocket(token: str, child_id: int, host: str) -> None:
+async def run_websocket_probe(token: str, child_id: int, host: str) -> None:
     url = f"ws://{host}/ws/{child_id}?token={token}"
 
     print(f"Connecting to ws://{host}/ws/{child_id}")
@@ -81,6 +81,6 @@ if __name__ == "__main__":
         )
 
     try:
-        asyncio.run(test_websocket(args.token, args.child_id, args.host))
+        asyncio.run(run_websocket_probe(args.token, args.child_id, args.host))
     except KeyboardInterrupt:
         print("\nTest stopped.")

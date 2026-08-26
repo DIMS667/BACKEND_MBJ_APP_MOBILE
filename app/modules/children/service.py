@@ -99,6 +99,7 @@ async def _create_default_routines(db: AsyncSession, child_id: int) -> None:
             title=routine_data["title"],
             type=routine_data["type"],
             icon_url=routine_data["icon_url"],
+            is_default=True,
         )
         db.add(routine)
         await db.flush()
@@ -108,6 +109,7 @@ async def _create_default_routines(db: AsyncSession, child_id: int) -> None:
                 routine_id=routine.id,
                 order=i,
                 title=step_title,
+                is_default=True,
             ))
 
     await db.flush()
@@ -247,13 +249,21 @@ async def delete_child_data(
     await _get_child_owned_by(db, child_id, parent_id)
 
     # Import local pour éviter les imports circulaires
-    from app.modules.emotions.models import EmotionRecord
+    from app.modules.emotions.models import (
+        CalmingActivityFeedback,
+        EmotionRecord,
+    )
     from app.modules.games.models import GameScore, GameProgress
     from app.modules.communication.models import FavoritePicto, SentenceHistory
     from app.modules.stories.models import StoryProgress
     from app.modules.routines.models import Routine, RoutineSession
 
     # Supprimer les enregistrements d'émotions
+    await db.execute(
+        delete(CalmingActivityFeedback).where(
+            CalmingActivityFeedback.child_id == child_id
+        )
+    )
     await db.execute(
         delete(EmotionRecord).where(EmotionRecord.child_id == child_id)
     )
