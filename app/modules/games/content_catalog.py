@@ -124,8 +124,14 @@ def _asset(
         "label": label,
         "emoji": emoji,
         "category": category,
+        # Chemin local pré-rempli par `seed_game_content_images()`
+        # (app/shared/seed.py) — jamais l'URL ARASAAC brute : certains
+        # exports ARASAAC sont des PNG multi-IDAT que le décodeur natif
+        # Android (Impeller) refuse de décoder. Si le fichier n'a encore
+        # jamais été seedé, l'app affiche l'emoji de secours (voir
+        # GameAssetView) plutôt qu'une image cassée.
         "image_url": (
-            f"https://static.arasaac.org/pictograms/{verified_image_id}/{verified_image_id}_300.png"
+            f"/storage/pictos/shared/arasaac_{verified_image_id}.png"
             if verified_image_id
             else None
         ),

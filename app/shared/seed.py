@@ -1,7 +1,10 @@
 import asyncio
+import io
 import os
+import re
 import httpx
 from gtts import gTTS
+from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, select
 from app.database import AsyncSessionLocal
@@ -14,6 +17,7 @@ from app.modules.communication.models import FavoritePicto, SentenceHistory   # 
 from app.modules.emotions.models import Emotion, CalmingActivity              # noqa
 from app.modules.routines.models import Routine, RoutineStep, RoutineSession  # noqa
 from app.modules.games.models import GameCategory, Game                       # noqa
+from app.modules.games.content_catalog import VERIFIED_IMAGE_IDS              # noqa
 from app.modules.stories.models import Story, StoryChoice, StoryPage          # noqa
 from app.modules.stories.story_catalog import STORIES_SPRINT_1_DATA           # noqa
 from app.modules.audio.models import AudioCategory, AudioFile                 # noqa
@@ -381,10 +385,43 @@ def _audio_path(word: str) -> tuple:
     return os.path.join(audio_dir, filename), f"/storage/audio/pictos/{filename}"
 
 
+def _reencode_png_bytes(raw: bytes) -> bytes:
+    """Ré-encode des octets PNG en RGBA à IDAT unique.
+
+    Certains exports ARASAAC sont des PNG indexés (mode palette) dont les
+    données compressées sont réparties sur plusieurs chunks IDAT — un
+    format valide selon la spec PNG, mais que le décodeur natif Android
+    (`ImageDecoder`, utilisé par le rendu Impeller de Flutter) refuse avec
+    `DecodeException: unimplemented — Input contained an error`. Pillow
+    réencode toujours en un seul IDAT, ce qui contourne le problème.
+    """
+    img = Image.open(io.BytesIO(raw)).convert("RGBA")
+    out = io.BytesIO()
+    img.save(out, format="PNG")
+    return out.getvalue()
+
+
+def _renormalize_existing_png(filepath: str) -> None:
+    """Ré-encode en place un PNG déjà présent sur disque — nécessaire pour
+    les fichiers téléchargés par un seed précédent avant le fix du format
+    (voir `_reencode_png_bytes`) : sans ça, le court-circuit "déjà présent"
+    laisserait le fichier cassé sur disque indéfiniment."""
+    try:
+        with open(filepath, "rb") as f:
+            raw = f.read()
+        fixed = _reencode_png_bytes(raw)
+        if fixed != raw:
+            with open(filepath, "wb") as f:
+                f.write(fixed)
+    except Exception as e:
+        print(f"      ⚠️  Ré-encodage du fichier existant échoué ({filepath}): {e}")
+
+
 async def _ensure_image(word: str, arasaac_id: int) -> str:
     filepath, local_url = _image_path(word, arasaac_id)
     if os.path.exists(filepath):
-        print(f"      📁 Image déjà présente : {os.path.basename(filepath)}")
+        _renormalize_existing_png(filepath)
+        print(f"      📁 Image déjà présente (ré-encodée si besoin) : {os.path.basename(filepath)}")
         return local_url
     url = ARASAAC_IMAGE_URL.format(id=arasaac_id)
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -392,13 +429,58 @@ async def _ensure_image(word: str, arasaac_id: int) -> str:
             resp = await client.get(url)
             if resp.status_code == 200:
                 with open(filepath, "wb") as f:
-                    f.write(resp.content)
+                    f.write(_reencode_png_bytes(resp.content))
                 print(f"      ⬇️  Image téléchargée : {os.path.basename(filepath)}")
                 return local_url
         except Exception as e:
             print(f"      ⚠️  Téléchargement échoué pour '{word}': {e}")
     print(f"      🔗 Fallback URL distante pour '{word}'")
     return url
+
+
+_ARASAAC_ID_RE = re.compile(r"/pictograms/(\d+)/")
+
+
+def _arasaac_local_path(arasaac_id: int) -> tuple:
+    images_dir = os.path.join(settings.STORAGE_PATH, "pictos", "shared")
+    os.makedirs(images_dir, exist_ok=True)
+    filename = f"arasaac_{arasaac_id}.png"
+    return (
+        os.path.join(images_dir, filename),
+        f"/storage/pictos/shared/{filename}",
+    )
+
+
+async def _ensure_arasaac_by_id(arasaac_id: int) -> str:
+    filepath, local_url = _arasaac_local_path(arasaac_id)
+    if os.path.exists(filepath):
+        _renormalize_existing_png(filepath)
+        return local_url
+    url = ARASAAC_IMAGE_URL.format(id=arasaac_id)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                with open(filepath, "wb") as f:
+                    f.write(_reencode_png_bytes(resp.content))
+                print(f"      ⬇️  Image ARASAAC {arasaac_id} téléchargée et ré-encodée")
+                return local_url
+        except Exception as e:
+            print(f"      ⚠️  Téléchargement/ré-encodage échoué pour l'ID {arasaac_id}: {e}")
+    print(f"      🔗 Fallback URL distante pour l'ID {arasaac_id}")
+    return url
+
+
+async def _localize_arasaac_url(url: str | None) -> str | None:
+    """Si `url` pointe vers static.arasaac.org, télécharge + ré-encode en
+    local (voir `_reencode_png_bytes`) et retourne le chemin local ;
+    sinon retourne `url` inchangé (déjà local, vide, ou autre origine)."""
+    if not url:
+        return url
+    match = _ARASAAC_ID_RE.search(url)
+    if not match:
+        return url
+    return await _ensure_arasaac_by_id(int(match.group(1)))
 
 
 def _ensure_audio(label: str, word: str) -> str:
@@ -432,19 +514,23 @@ async def seed_communication(db: AsyncSession) -> None:
             select(PictoCategory).where(PictoCategory.name == cat_name)
         )
         category = result.scalar_one_or_none()
+        icon_url = await _localize_arasaac_url(cat_data.get("icon_url"))
 
         if not category:
             category = PictoCategory(
                 name=cat_name,
                 color=cat_data["color"],
                 order=cat_data["order"],
-                icon_url=cat_data.get("icon_url"),
+                icon_url=icon_url,
             )
             db.add(category)
             await db.flush()
             print(f"✅ Catégorie créée : {cat_name}")
         else:
-            print(f"⏭️  Catégorie existante : {cat_name} (ignorée)")
+            category.color = cat_data["color"]
+            category.order = cat_data["order"]
+            category.icon_url = icon_url
+            print(f"🔄 Catégorie mise à jour : {cat_name}")
 
         for word in cat_data["words"]:
             print(f"   🔍 Traitement : {word}")
@@ -470,16 +556,20 @@ async def seed_communication(db: AsyncSession) -> None:
                     )
                 )
 
-            if existing.scalar_one_or_none():
-                print(f"   ⏭️  Picto existant : {word} → {label} (ignoré)")
-                continue
+            already_exists = existing.scalar_one_or_none() is not None
 
-            # 3. Télécharger l'image et générer l'audio
+            # 3. Télécharger l'image et générer l'audio — même si le picto
+            # existe déjà en base : le fichier sur disque, lui, peut dater
+            # d'un seed antérieur au fix du format PNG (voir _ensure_image).
             if arasaac_id:
                 image_url = await _ensure_image(word, arasaac_id)
             else:
                 image_url = f"https://placehold.co/300x300?text={word}"
                 label = word
+
+            if already_exists:
+                print(f"   ⏭️  Picto existant : {word} → {label} (image ré-encodée si besoin)")
+                continue
 
             audio_url = _ensure_audio(label, word)
 
@@ -502,6 +592,10 @@ async def seed_communication(db: AsyncSession) -> None:
 async def seed_emotions(db: AsyncSession) -> None:
     print("\n🌱 Seed Emotions...\n")
     for emotion_data in EMOTIONS_DATA:
+        emotion_data = {
+            **emotion_data,
+            "icon_url": await _localize_arasaac_url(emotion_data.get("icon_url")),
+        }
         result = await db.execute(select(Emotion).where(Emotion.name == emotion_data["name"]))
         emotion = result.scalar_one_or_none()
         if emotion is None:
@@ -512,6 +606,10 @@ async def seed_emotions(db: AsyncSession) -> None:
             setattr(emotion, field, value)
         print(f"   🔄 Émotion mise à jour : {emotion_data['name']}")
     for activity_data in CALMING_ACTIVITIES_DATA:
+        activity_data = {
+            **activity_data,
+            "icon_url": await _localize_arasaac_url(activity_data.get("icon_url")),
+        }
         result = await db.execute(select(CalmingActivity).where(CalmingActivity.name == activity_data["name"]))
         activity = result.scalar_one_or_none()
         if activity is None:
@@ -535,17 +633,20 @@ async def seed_routines(db: AsyncSession) -> None:
     for child in children:
         print(f"   👦 Routines pour : {child.first_name} (id={child.id})")
         for routine_data in ROUTINES_DATA:
+            icon_url = await _localize_arasaac_url(routine_data["icon_url"])
             result = await db.execute(
                 select(Routine).where(Routine.child_id == child.id, Routine.type == routine_data["type"])
             )
-            if result.scalar_one_or_none():
-                print(f"      ⏭️  Routine existante : {routine_data['title']}")
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.icon_url = icon_url
+                print(f"      🔄 Routine mise à jour : {routine_data['title']}")
                 continue
             routine = Routine(
                 child_id=child.id,
                 title=routine_data["title"],
                 type=routine_data["type"],
-                icon_url=routine_data["icon_url"],
+                icon_url=icon_url,
                 is_default=True,
             )
             db.add(routine)
@@ -567,20 +668,31 @@ async def seed_games(db: AsyncSession) -> None:
     for cat_data in GAMES_DATA:
         result = await db.execute(select(GameCategory).where(GameCategory.name == cat_data["name"]))
         category = result.scalar_one_or_none()
+        cat_icon_url = await _localize_arasaac_url(cat_data["icon_url"])
         if not category:
-            category = GameCategory(name=cat_data["name"], description=cat_data["description"], color=cat_data["color"], order=cat_data["order"], icon_url=cat_data["icon_url"])
+            category = GameCategory(name=cat_data["name"], description=cat_data["description"], color=cat_data["color"], order=cat_data["order"], icon_url=cat_icon_url)
             db.add(category)
             await db.flush()
             print(f"✅ Catégorie jeu créée : {cat_data['name']}")
         else:
-            print(f"⏭️  Catégorie jeu existante : {cat_data['name']}")
+            category.description = cat_data["description"]
+            category.color = cat_data["color"]
+            category.order = cat_data["order"]
+            category.icon_url = cat_icon_url
+            print(f"🔄 Catégorie jeu mise à jour : {cat_data['name']}")
         for game_data in cat_data["games"]:
+            game_icon_url = await _localize_arasaac_url(game_data["icon_url"])
             existing = await db.execute(select(Game).where(Game.title == game_data["title"], Game.category_id == category.id))
-            if existing.scalar_one_or_none():
-                print(f"   ⏭️  Jeu existant : {game_data['title']}")
+            game = existing.scalar_one_or_none()
+            if game is None:
+                db.add(Game(category_id=category.id, title=game_data["title"], description=game_data["description"], icon_url=game_icon_url, min_level=game_data["min_level"], max_level=game_data["max_level"], is_offline_available=True))
+                print(f"   🎮 Jeu créé : {game_data['title']}")
                 continue
-            db.add(Game(category_id=category.id, title=game_data["title"], description=game_data["description"], icon_url=game_data["icon_url"], min_level=game_data["min_level"], max_level=game_data["max_level"], is_offline_available=True))
-            print(f"   🎮 Jeu créé : {game_data['title']}")
+            game.description = game_data["description"]
+            game.icon_url = game_icon_url
+            game.min_level = game_data["min_level"]
+            game.max_level = game_data["max_level"]
+            print(f"   🔄 Jeu mis à jour : {game_data['title']}")
     await db.commit()
     print("\n🎉 Seed Games terminé !\n")
 
@@ -597,7 +709,7 @@ async def seed_stories(db: AsyncSession) -> None:
         story.description = story_data["description"]
         story.category = story_data["category"]
         story.difficulty_level = story_data["difficulty_level"]
-        story.cover_url = story_data["cover_url"]
+        story.cover_url = await _localize_arasaac_url(story_data["cover_url"])
         story.total_pages = len(story_data["pages"])
         story.is_offline_available = True
         story.is_custom = False
@@ -613,8 +725,8 @@ async def seed_stories(db: AsyncSession) -> None:
                 story_id=story.id,
                 page_number=page_data["page_number"],
                 text=page_data["text"],
-                image_url=page_data.get("image_url"),
-                pictogram_url=page_data.get("pictogram_url"),
+                image_url=await _localize_arasaac_url(page_data.get("image_url")),
+                pictogram_url=await _localize_arasaac_url(page_data.get("pictogram_url")),
                 audio_url=audio_url,
                 animation_type=page_data.get("animation_type", "fade"),
                 next_page_number=page_data.get("next_page_number"),
@@ -626,7 +738,7 @@ async def seed_stories(db: AsyncSession) -> None:
                     StoryChoice(
                         page_id=page.id,
                         label=choice_data["label"],
-                        pictogram_url=choice_data.get("pictogram_url"),
+                        pictogram_url=await _localize_arasaac_url(choice_data.get("pictogram_url")),
                         next_page_number=choice_data["next_page_number"],
                         sort_order=choice_data.get("sort_order", 0),
                     )
@@ -641,13 +753,16 @@ async def seed_audio(db: AsyncSession) -> None:
     for cat_data in AUDIO_DATA:
         result = await db.execute(select(AudioCategory).where(AudioCategory.name == cat_data["name"]))
         category = result.scalar_one_or_none()
+        audio_cat_icon_url = await _localize_arasaac_url(cat_data["icon_url"])
         if not category:
-            category = AudioCategory(name=cat_data["name"], description=cat_data["description"], icon_url=cat_data["icon_url"])
+            category = AudioCategory(name=cat_data["name"], description=cat_data["description"], icon_url=audio_cat_icon_url)
             db.add(category)
             await db.flush()
             print(f"✅ Catégorie audio créée : {cat_data['name']}")
         else:
-            print(f"⏭️  Catégorie audio existante : {cat_data['name']}")
+            category.description = cat_data["description"]
+            category.icon_url = audio_cat_icon_url
+            print(f"🔄 Catégorie audio mise à jour : {cat_data['name']}")
         for file_data in cat_data["files"]:
             existing = await db.execute(select(AudioFile).where(AudioFile.title == file_data["title"], AudioFile.category_id == category.id))
             if existing.scalar_one_or_none():
@@ -660,6 +775,18 @@ async def seed_audio(db: AsyncSession) -> None:
     print("\n🎉 Seed Audio terminé !\n")
 
 
+async def seed_game_content_images() -> None:
+    """Pré-télécharge et ré-encode localement les images ARASAAC utilisées
+    par le contenu généré à la volée des jeux (voir content_catalog.py —
+    ces URLs sont construites par requête, pas stockées en base, donc le
+    cache doit exister sur disque AVANT que l'app ne les référence)."""
+    print("\n🌱 Seed Game Content Images...\n")
+    unique_ids = sorted(set(VERIFIED_IMAGE_IDS.values()))
+    for arasaac_id in unique_ids:
+        await _ensure_arasaac_by_id(arasaac_id)
+    print(f"\n🎉 Seed Game Content Images terminé ({len(unique_ids)} images) !\n")
+
+
 async def main():
     async with AsyncSessionLocal() as db:
         await seed_communication(db)
@@ -668,6 +795,7 @@ async def main():
         await seed_games(db)
         await seed_stories(db)
         await seed_audio(db)
+    await seed_game_content_images()
 
 
 if __name__ == "__main__":
