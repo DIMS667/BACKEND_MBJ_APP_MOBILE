@@ -2,6 +2,7 @@ import asyncio
 import io
 import os
 import re
+import unicodedata
 import httpx
 from gtts import gTTS
 from PIL import Image
@@ -371,17 +372,38 @@ async def fetch_picto_id(word: str) -> tuple:
     return None, word
 
 
+def _slugify(word: str) -> str:
+    """ASCII-fie un mot pour un nom de fichier sûr à servir en HTTP.
+
+    Vérifié en prod : bébé_*.png, médecin_*.png, colère_*.png (et leurs
+    équivalents audio) renvoient 404 alors que le fichier est valide sur
+    disque et que chaud_*.png (sans accent) fonctionne — un maillon de la
+    chaîne serveur (filesystem Linux du mutualisé, ou le proxy de cache
+    devant) ne gère pas ces noms correctement. On évite le problème à la
+    source plutôt que d'en chercher la cause exacte sur un serveur qu'on
+    ne contrôle pas.
+    """
+    normalized = unicodedata.normalize("NFKD", word)
+    return normalized.encode("ascii", "ignore").decode("ascii")
+
+
+def _legacy_image_path(word: str, arasaac_id: int) -> tuple:
+    images_dir = os.path.join(settings.STORAGE_PATH, "pictos")
+    filename = f"{word.replace(' ', '_')}_{arasaac_id}.png"
+    return os.path.join(images_dir, filename), f"/storage/pictos/{filename}"
+
+
 def _image_path(word: str, arasaac_id: int) -> tuple:
     images_dir = os.path.join(settings.STORAGE_PATH, "pictos")
     os.makedirs(images_dir, exist_ok=True)
-    filename = f"{word.replace(' ', '_')}_{arasaac_id}.png"
+    filename = f"{_slugify(word).replace(' ', '_')}_{arasaac_id}.png"
     return os.path.join(images_dir, filename), f"/storage/pictos/{filename}"
 
 
 def _audio_path(word: str) -> tuple:
     audio_dir = os.path.join(settings.STORAGE_PATH, "audio", "pictos")
     os.makedirs(audio_dir, exist_ok=True)
-    filename = f"{word.replace(' ', '_')}.mp3"
+    filename = f"{_slugify(word).replace(' ', '_')}.mp3"
     return os.path.join(audio_dir, filename), f"/storage/audio/pictos/{filename}"
 
 
@@ -539,24 +561,38 @@ async def seed_communication(db: AsyncSession) -> None:
             arasaac_id, label = await fetch_picto_id(word)
 
             # 2. Vérifier l'existence par image_url (fiable même si label diffère)
+            existing_picto = None
             if arasaac_id:
                 _, local_img_url = _image_path(word, arasaac_id)
-                existing = await db.execute(
+                result = await db.execute(
                     select(Pictogram).where(
                         Pictogram.image_url == local_img_url,
                         Pictogram.category_id == category.id,
                     )
                 )
+                existing_picto = result.scalar_one_or_none()
+                if existing_picto is None:
+                    # Fallback : ancien nom de fichier avant ASCII-fication
+                    # (voir _slugify) — migre l'enregistrement au lieu d'en
+                    # créer un doublon.
+                    _, legacy_img_url = _legacy_image_path(word, arasaac_id)
+                    if legacy_img_url != local_img_url:
+                        result = await db.execute(
+                            select(Pictogram).where(
+                                Pictogram.image_url == legacy_img_url,
+                                Pictogram.category_id == category.id,
+                            )
+                        )
+                        existing_picto = result.scalar_one_or_none()
             else:
                 # Fallback : vérifier par label si pas d'ID ARASAAC
-                existing = await db.execute(
+                result = await db.execute(
                     select(Pictogram).where(
                         Pictogram.label == word,
                         Pictogram.category_id == category.id,
                     )
                 )
-
-            already_exists = existing.scalar_one_or_none() is not None
+                existing_picto = result.scalar_one_or_none()
 
             # 3. Télécharger l'image et générer l'audio — même si le picto
             # existe déjà en base : le fichier sur disque, lui, peut dater
@@ -567,11 +603,14 @@ async def seed_communication(db: AsyncSession) -> None:
                 image_url = f"https://placehold.co/300x300?text={word}"
                 label = word
 
-            if already_exists:
-                print(f"   ⏭️  Picto existant : {word} → {label} (image ré-encodée si besoin)")
-                continue
-
             audio_url = _ensure_audio(label, word)
+
+            if existing_picto:
+                existing_picto.label = label
+                existing_picto.image_url = image_url
+                existing_picto.audio_url = audio_url
+                print(f"   🔄 Picto mis à jour : {word} → {label}")
+                continue
 
             picto = Pictogram(
                 category_id=category.id,
