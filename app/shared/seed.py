@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import io
 import os
 import re
@@ -357,8 +358,18 @@ AUDIO_DATA = [
 ARASAAC_SEARCH_URL = "https://api.arasaac.org/v1/pictograms/fr/search/{word}"
 ARASAAC_IMAGE_URL  = "https://static.arasaac.org/pictograms/{id}/{id}_300.png"
 
+# fetch_picto_id() prend par défaut le 1er résultat de recherche ARASAAC,
+# ce qui n'est pas toujours le plus pertinent sémantiquement (ex: "froid"
+# retournait un verre d'eau glacée plutôt qu'une personne qui grelotte).
+# Overrides vérifiés manuellement mot par mot au fur et à mesure.
+MANUAL_PICTO_OVERRIDES = {
+    "froid": 35583,  # personne qui grelotte ("avoir froid"), pas un verre glacé
+}
+
 
 async def fetch_picto_id(word: str) -> tuple:
+    if word in MANUAL_PICTO_OVERRIDES:
+        return MANUAL_PICTO_OVERRIDES[word], word
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
             resp = await client.get(ARASAAC_SEARCH_URL.format(word=word))
@@ -400,10 +411,21 @@ def _image_path(word: str, arasaac_id: int) -> tuple:
     return os.path.join(images_dir, filename), f"/storage/pictos/{filename}"
 
 
-def _audio_path(word: str) -> tuple:
+def _audio_path(word: str, text: str) -> tuple:
+    """Le nom de fichier inclut un hash du texte réellement synthétisé.
+
+    Sans ça, `_ensure_audio` ne régénère jamais un fichier déjà présent —
+    si le texte source change (ex: le texte d'une page d'histoire est
+    corrigé dans story_catalog.py) sans que le nom de fichier change,
+    l'audio reste bloqué sur l'ancienne version indéfiniment : le texte
+    affiché (toujours à jour, recréé à chaque seed) diverge alors de la
+    voix jouée. Le hash invalide le cache automatiquement dès que `text`
+    change, sans coût de régénération quand rien n'a changé.
+    """
     audio_dir = os.path.join(settings.STORAGE_PATH, "audio", "pictos")
     os.makedirs(audio_dir, exist_ok=True)
-    filename = f"{_slugify(word).replace(' ', '_')}.mp3"
+    text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()[:8]
+    filename = f"{_slugify(word).replace(' ', '_')}_{text_hash}.mp3"
     return os.path.join(audio_dir, filename), f"/storage/audio/pictos/{filename}"
 
 
@@ -506,7 +528,7 @@ async def _localize_arasaac_url(url: str | None) -> str | None:
 
 
 def _ensure_audio(label: str, word: str) -> str:
-    filepath, local_url = _audio_path(word)
+    filepath, local_url = _audio_path(word, label)
     if os.path.exists(filepath):
         print(f"      📁 Audio déjà présent : {os.path.basename(filepath)}")
         return local_url
@@ -584,6 +606,19 @@ async def seed_communication(db: AsyncSession) -> None:
                             )
                         )
                         existing_picto = result.scalar_one_or_none()
+                if existing_picto is None:
+                    # Fallback : même mot mais ID ARASAAC différent de celui
+                    # stocké (ex: MANUAL_PICTO_OVERRIDES change l'ID choisi
+                    # pour un mot déjà seedé) — migre par préfixe de fichier
+                    # plutôt que de créer un doublon.
+                    prefix = f"/storage/pictos/{_slugify(word).replace(' ', '_')}_"
+                    result = await db.execute(
+                        select(Pictogram).where(
+                            Pictogram.image_url.like(f"{prefix}%"),
+                            Pictogram.category_id == category.id,
+                        )
+                    )
+                    existing_picto = result.scalars().first()
             else:
                 # Fallback : vérifier par label si pas d'ID ARASAAC
                 result = await db.execute(
