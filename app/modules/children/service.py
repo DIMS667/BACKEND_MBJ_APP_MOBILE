@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from .models import Child, SensoryProfile, ChildPreferences
@@ -119,9 +119,21 @@ async def _create_default_routines(db: AsyncSession, child_id: int) -> None:
 # CRUD ENFANT
 # ─────────────────────────────────────────────────────────────────
 
+MAX_CHILDREN_PER_PARENT = 2
+
+
 async def create_child(
     db: AsyncSession, data: ChildCreate, parent_id: int
 ) -> Child:
+    existing_count = await db.scalar(
+        select(func.count()).select_from(Child).where(Child.parent_id == parent_id)
+    )
+    if existing_count >= MAX_CHILDREN_PER_PARENT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Limite de {MAX_CHILDREN_PER_PARENT} profils enfant atteinte.",
+        )
+
     child = Child(
         parent_id=parent_id,
         first_name=data.first_name,
