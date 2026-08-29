@@ -26,6 +26,15 @@ from app.modules.audio.models import AudioCategory, AudioFile                 # 
 
 
 SEED_DATA = {
+    "Mots essentiels": {
+        "color": "#B4A7E5",
+        "order": 0,
+        "icon_url": "https://static.arasaac.org/pictograms/5441/5441_300.png",
+        # Vocabulaire "core" AAC : mots-pivots à haute fréquence qui se
+        # combinent avec n'importe quel pictogramme des autres catégories
+        # pour construire des phrases (ex: "je veux" + "manger").
+        "words": ["je veux", "j'ai", "je suis", "j'aime", "encore", "arrête", "oui", "non"]
+    },
     "Besoins": {
         "color": "#FF9AA2",
         "order": 1,
@@ -364,6 +373,18 @@ ARASAAC_IMAGE_URL  = "https://static.arasaac.org/pictograms/{id}/{id}_300.png"
 # Overrides vérifiés manuellement mot par mot au fur et à mesure.
 MANUAL_PICTO_OVERRIDES = {
     "froid": 35583,  # personne qui grelotte ("avoir froid"), pas un verre glacé
+    # Mots-pivots (catégorie "Mots essentiels") : la recherche automatique
+    # ARASAAC indexe des lemmes ("vouloir", "aimer"...), pas les formes
+    # conjuguées affichées à l'enfant — ID vérifié manuellement + libellé
+    # forcé à la forme exacte recherchée (voir fetch_picto_id ci-dessous).
+    "je veux": 5441,   # "vouloir" — mot-clé ARASAAC inclut déjà "je veux"
+    "j'ai": 32761,     # "avoir, tenir, posséder"
+    "je suis": 6632,   # "je, me, moi" — silhouette qui se désigne
+    "j'aime": 37826,   # "j'aime ça, aimer, apprécier"
+    "encore": 37163,   # "encore, une autre fois, à nouveau"
+    "arrête": 7196,    # "arrêter, stopper"
+    "oui": 5584,       # "oui, ok"
+    "non": 5526,       # "non"
 }
 
 
@@ -395,7 +416,10 @@ def _slugify(word: str) -> str:
     ne contrôle pas.
     """
     normalized = unicodedata.normalize("NFKD", word)
-    return normalized.encode("ascii", "ignore").decode("ascii")
+    ascii_word = normalized.encode("ascii", "ignore").decode("ascii")
+    # Apostrophes ("j'ai", "j'aime") : même prudence que pour les accents
+    # ci-dessus, on évite de les laisser dans un nom de fichier servi en HTTP.
+    return ascii_word.replace("'", "")
 
 
 def _legacy_image_path(word: str, arasaac_id: int) -> tuple:
