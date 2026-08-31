@@ -193,38 +193,38 @@ GAMES_DATA = [
     {
         "name": "Mémoire", "description": "Retrouver des paires de cartes identiques",
         "color": "#98FB98", "order": 1,
-        "icon_url": "https://static.arasaac.org/pictograms/5362/5362_300.png",
+        "icon_url": "https://static.arasaac.org/pictograms/8025/8025_300.png",
         "games": [
-            {"title": "Paires d'animaux",  "description": "Retrouve les paires d'animaux cachées",       "icon_url": "https://static.arasaac.org/pictograms/5362/5362_300.png",   "min_level": 1, "max_level": 5},
+            {"title": "Paires d'animaux",  "description": "Retrouve les paires d'animaux cachées",       "icon_url": "https://static.arasaac.org/pictograms/8025/8025_300.png",   "min_level": 1, "max_level": 5},
             {"title": "Paires d'émotions", "description": "Retrouve les paires de visages expressifs",   "icon_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "min_level": 1, "max_level": 5},
         ]
     },
     {
         "name": "Concentration", "description": "Améliorer l'attention soutenue",
         "color": "#87CEEB", "order": 2,
-        "icon_url": "https://static.arasaac.org/pictograms/6565/6565_300.png",
+        "icon_url": "https://static.arasaac.org/pictograms/6947/6947_300.png",
         "games": [
-            {"title": "Trouve l'objet",       "description": "Trouve un objet précis dans une scène",          "icon_url": "https://static.arasaac.org/pictograms/6565/6565_300.png", "min_level": 1, "max_level": 5},
+            {"title": "Trouve l'objet",       "description": "Trouve un objet précis dans une scène",          "icon_url": "https://static.arasaac.org/pictograms/6947/6947_300.png", "min_level": 1, "max_level": 5},
             {"title": "Spot les différences", "description": "Trouve les différences entre deux images",        "icon_url": "https://static.arasaac.org/pictograms/6564/6564_300.png", "min_level": 1, "max_level": 5},
         ]
     },
     {
         "name": "Logique", "description": "Développer le raisonnement",
         "color": "#DDA0DD", "order": 3,
-        "icon_url": "https://static.arasaac.org/pictograms/7141/7141_300.png",
+        "icon_url": "https://static.arasaac.org/pictograms/2540/2540_300.png",
         "games": [
-            {"title": "Complète la suite", "description": "Complète la suite logique de formes",        "icon_url": "https://static.arasaac.org/pictograms/7141/7141_300.png", "min_level": 1, "max_level": 5},
+            {"title": "Complète la suite", "description": "Complète la suite logique de formes",        "icon_url": "https://static.arasaac.org/pictograms/2540/2540_300.png", "min_level": 1, "max_level": 5},
             {"title": "Classe les objets", "description": "Range les objets dans la bonne catégorie",   "icon_url": "https://static.arasaac.org/pictograms/9813/9813_300.png", "min_level": 1, "max_level": 5},
-            {"title": "Séquence routine", "description": "Remets les étapes du quotidien dans le bon ordre", "icon_url": "https://static.arasaac.org/pictograms/2725/2725_300.png", "min_level": 1, "max_level": 5},
+            {"title": "Séquence routine", "description": "Remets les étapes du quotidien dans le bon ordre", "icon_url": "https://static.arasaac.org/pictograms/5898/5898_300.png", "min_level": 1, "max_level": 5},
         ]
     },
     {
         "name": "Reconnaissance", "description": "Identifier couleurs, sons, animaux",
         "color": "#FFB347", "order": 4,
-        "icon_url": "https://static.arasaac.org/pictograms/2300/2300_300.png",
+        "icon_url": "https://static.arasaac.org/pictograms/6564/6564_300.png",
         "games": [
-            {"title": "Reconnais l'animal",  "description": "Associe le son à l'animal correspondant", "icon_url": "https://static.arasaac.org/pictograms/5362/5362_300.png", "min_level": 1, "max_level": 5},
-            {"title": "Reconnais la couleur","description": "Identifie les couleurs des objets",        "icon_url": "https://static.arasaac.org/pictograms/2300/2300_300.png", "min_level": 1, "max_level": 5},
+            {"title": "Reconnais l'animal",  "description": "Associe le son à l'animal correspondant", "icon_url": "https://static.arasaac.org/pictograms/8025/8025_300.png", "min_level": 1, "max_level": 5},
+            {"title": "Reconnais la couleur","description": "Identifie les couleurs des objets",        "icon_url": "https://static.arasaac.org/pictograms/7075/7075_300.png", "min_level": 1, "max_level": 5},
         ]
     },
     {
