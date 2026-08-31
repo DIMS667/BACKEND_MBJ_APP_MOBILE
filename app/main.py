@@ -20,6 +20,7 @@ from app.modules.games.router import router as games_router
 from app.modules.stories.router import router as stories_router
 from app.modules.audio.router import router as audio_router
 from app.modules.dashboard.router import router as dashboard_router
+from app.modules.drawing.router import router as drawing_router
 from app.websocket.router import router as ws_router
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -60,6 +61,7 @@ app.include_router(games_router,         prefix="/games",     tags=["Games"])
 app.include_router(stories_router,       prefix="/stories",   tags=["Stories"])
 app.include_router(audio_router,         prefix="/audio",     tags=["Audio"])
 app.include_router(dashboard_router,     prefix="/dashboard", tags=["Dashboard"])
+app.include_router(drawing_router,       prefix="/drawing",   tags=["Drawing"])
 app.include_router(ws_router,            tags=["WebSocket"])
 
 

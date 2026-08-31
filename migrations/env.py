@@ -44,6 +44,7 @@ from app.modules.stories.models import (  # noqa: F401
     StoryMedia,
 )
 from app.modules.audio.models import AudioCategory, AudioFile  # noqa: F401
+from app.modules.drawing.models import Drawing  # noqa: F401
 
 # ─── Config Alembic ─────────────────────────────────────────────────────────
 config = context.config

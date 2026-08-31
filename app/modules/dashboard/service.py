@@ -413,12 +413,10 @@ async def generate_report(
     emotion_trends = await get_emotion_trends(db, child_id, parent_id, days)
 
     # Générer les recommandations automatiques
-    recommendations = _generate_recommendations(
-        progress, stats, emotion_trends
-    )
+    recommendations = _generate_recommendations(stats)
 
     # Résumé global
-    summary = _generate_summary(child.first_name, progress, emotion_trends)
+    summary = _generate_summary(child.first_name, progress)
 
     return {
         "child_id": child_id,
@@ -434,12 +432,8 @@ async def generate_report(
     }
 
 
-def _generate_summary(
-    name: str, progress: dict, emotion_trends: dict
-) -> str:
+def _generate_summary(name: str, progress: dict) -> str:
     rate = progress["global_completion_rate"]
-    positive_rate = emotion_trends["positive_rate"]
-    most_frequent = emotion_trends.get("most_frequent_emotion", "calme")
 
     if rate >= 80:
         progress_text = f"{name} progresse très bien dans l'ensemble des activités"
@@ -448,41 +442,11 @@ def _generate_summary(
     else:
         progress_text = f"{name} commence à explorer les activités"
 
-    if positive_rate >= 70:
-        emotion_text = f"et exprime majoritairement des émotions positives"
-    elif positive_rate >= 40:
-        emotion_text = f"avec un équilibre émotionnel en développement"
-    else:
-        emotion_text = f"avec un accompagnement émotionnel recommandé"
-
-    return (
-        f"{progress_text} ({rate}% de complétion) {emotion_text}. "
-        f"L'émotion la plus fréquente est : {most_frequent}."
-    )
+    return f"{progress_text} ({rate}% de complétion)."
 
 
-def _generate_recommendations(
-    progress: dict, stats: dict, emotion_trends: dict
-) -> list:
+def _generate_recommendations(stats: dict) -> list:
     recommendations = []
-
-    # Recommandation routines
-    routine_module = next(
-        (m for m in progress["modules"] if m["module_name"] == "Routines"),
-        None
-    )
-    if routine_module and routine_module["completion_rate"] < 50:
-        recommendations.append(
-            "Encourager la pratique quotidienne des routines visuelles "
-            "pour renforcer les repères de l'enfant."
-        )
-
-    # Recommandation émotions
-    if emotion_trends["positive_rate"] < 40:
-        recommendations.append(
-            "Les émotions difficiles sont fréquentes. "
-            "Utiliser régulièrement les activités apaisantes proposées par l'application."
-        )
 
     # Recommandation jeux
     if stats["total_game_sessions"] < 5:
