@@ -15,7 +15,7 @@ def _validate(story: dict, index: int = 0) -> CustomStoryUpsert:
     )
 
 
-def test_catalog_covers_all_social_themes_and_levels():
+def test_catalog_covers_all_social_themes():
     stories = [_validate(story, index) for index, story in enumerate(STORIES_SPRINT_1_DATA)]
 
     assert len(stories) == 14
@@ -28,8 +28,16 @@ def test_catalog_covers_all_social_themes_and_levels():
         "sleep",
         "hygiene",
     }
-    assert {story.difficulty_level for story in stories} == {1, 2, 3}
     assert all(len(story.pages) >= 5 for story in stories)
+
+
+def test_catalog_stories_are_all_interactive():
+    # Chaque histoire doit demander une intervention de l'enfant (au moins
+    # un choix) : plus d'histoires purement passives dans le catalogue.
+    for index, raw_story in enumerate(STORIES_SPRINT_1_DATA):
+        story = _validate(raw_story, index)
+        has_choice = any(page.choices for page in story.pages)
+        assert has_choice, f"'{story.title}' n'a aucun choix interactif"
 
 
 def test_catalog_choices_only_move_forward_to_existing_pages():
@@ -75,7 +83,6 @@ def test_custom_story_graph_rejects_loops_and_missing_pages(pages):
                 "title": "Une histoire invalide",
                 "description": "Test",
                 "category": "custom",
-                "difficulty_level": 1,
                 "pages": pages,
             }
         )

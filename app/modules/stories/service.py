@@ -110,7 +110,6 @@ async def get_all_stories(
     db: AsyncSession,
     parent_id: int,
     category: str | None = None,
-    difficulty: int | None = None,
     child_id: int | None = None,
     favorites_only: bool = False,
 ) -> list[Story]:
@@ -120,14 +119,12 @@ async def get_all_stories(
     query = (
         select(Story)
         .where(_story_access_clause(parent_id))
-        .order_by(Story.difficulty_level, Story.category, Story.title)
+        .order_by(Story.category, Story.title)
     )
     if child_id is not None:
         query = query.where(or_(Story.child_id.is_(None), Story.child_id == child_id))
     if category:
         query = query.where(Story.category == category)
-    if difficulty:
-        query = query.where(Story.difficulty_level == difficulty)
 
     favorite_ids = await _favorite_ids(db, child_id)
     result = await db.execute(query)
@@ -203,7 +200,6 @@ async def upsert_custom_story(
     story.title = data.title.strip()
     story.description = data.description.strip()
     story.category = data.category.strip().lower()
-    story.difficulty_level = data.difficulty_level
     story.child_id = data.child_id
     story.total_pages = len(data.pages)
     story.cover_url = data.cover_url or next(

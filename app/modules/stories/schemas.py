@@ -50,7 +50,6 @@ class StoryResponse(BaseModel):
     description: str = ""
     cover_url: str = ""
     category: str
-    difficulty_level: int
     is_offline_available: bool
     total_pages: int
     is_custom: bool = False
@@ -72,7 +71,6 @@ class CustomStoryUpsert(BaseModel):
     title: str = Field(min_length=3, max_length=120)
     description: str = Field(default="", max_length=500)
     category: str = Field(min_length=2, max_length=40)
-    difficulty_level: int = Field(ge=1, le=3)
     cover_url: Optional[str] = Field(default=None, max_length=500)
     pages: list[StoryPageInput] = Field(min_length=2, max_length=30)
 

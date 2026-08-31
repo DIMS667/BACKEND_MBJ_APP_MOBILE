@@ -238,96 +238,6 @@ GAMES_DATA = [
     },
 ]
 
-STORIES_DATA = [
-    {
-        "title": "Dire bonjour", "description": "Apprendre à saluer les autres",
-        "category": "greeting", "difficulty_level": 1,
-        "cover_url": "https://static.arasaac.org/pictograms/6563/6563_300.png",
-        "pages": [
-            {"page_number": 1, "text": "Le matin, Julien arrive à l'école.",    "image_url": "https://static.arasaac.org/pictograms/32446/32446_300.png", "animation_type": "fade"},
-            {"page_number": 2, "text": "Il voit son ami Thomas.",                "image_url": "https://static.arasaac.org/pictograms/25790/25790_300.png", "animation_type": "fade"},
-            {"page_number": 3, "text": "Julien dit : Bonjour Thomas !",          "image_url": "https://static.arasaac.org/pictograms/6563/6563_300.png",   "animation_type": "fade"},
-            {"page_number": 4, "text": "Thomas est content. Il sourit.",         "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-            {"page_number": 5, "text": "Dire bonjour, c'est gentil !",           "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-        ]
-    },
-    {
-        "title": "Attendre son tour", "description": "Apprendre à attendre son tour",
-        "category": "turn", "difficulty_level": 1,
-        "cover_url": "https://static.arasaac.org/pictograms/6503/6503_300.png",
-        "pages": [
-            {"page_number": 1, "text": "Léa veut jouer avec le ballon.",         "image_url": "https://static.arasaac.org/pictograms/3241/3241_300.png",   "animation_type": "fade"},
-            {"page_number": 2, "text": "Marc joue avec le ballon.",               "image_url": "https://static.arasaac.org/pictograms/23392/23392_300.png", "animation_type": "fade"},
-            {"page_number": 3, "text": "Léa attend. Elle est patiente.",          "image_url": "https://static.arasaac.org/pictograms/6503/6503_300.png",   "animation_type": "fade"},
-            {"page_number": 4, "text": "Marc donne le ballon à Léa.",             "image_url": "https://static.arasaac.org/pictograms/3241/3241_300.png",   "animation_type": "fade"},
-            {"page_number": 5, "text": "Ils jouent ensemble. C'est bien !",       "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-        ]
-    },
-    {
-        "title": "Partager ses jouets", "description": "Apprendre à partager avec les autres",
-        "category": "sharing", "difficulty_level": 1,
-        "cover_url": "https://static.arasaac.org/pictograms/9813/9813_300.png",
-        "pages": [
-            {"page_number": 1, "text": "Noah a beaucoup de jouets.",              "image_url": "https://static.arasaac.org/pictograms/9813/9813_300.png",   "animation_type": "fade"},
-            {"page_number": 2, "text": "Son amie Emma n'a pas de jouet.",         "image_url": "https://static.arasaac.org/pictograms/35545/35545_300.png", "animation_type": "fade"},
-            {"page_number": 3, "text": "Noah donne un jouet à Emma.",             "image_url": "https://static.arasaac.org/pictograms/9813/9813_300.png",   "animation_type": "fade"},
-            {"page_number": 4, "text": "Emma est très heureuse !",                "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-            {"page_number": 5, "text": "Partager rend les amis heureux.",         "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-        ]
-    },
-    {
-        "title": "Chez le médecin", "description": "Ce qui se passe chez le médecin",
-        "category": "doctor", "difficulty_level": 2,
-        "cover_url": "https://static.arasaac.org/pictograms/6561/6561_300.png",
-        "pages": [
-            {"page_number": 1, "text": "Aujourd'hui, Clara va chez le médecin.", "image_url": "https://static.arasaac.org/pictograms/6561/6561_300.png",   "animation_type": "fade"},
-            {"page_number": 2, "text": "Elle attend dans la salle d'attente.",   "image_url": "https://static.arasaac.org/pictograms/6503/6503_300.png",   "animation_type": "fade"},
-            {"page_number": 3, "text": "Le médecin l'appelle. Elle entre.",      "image_url": "https://static.arasaac.org/pictograms/6561/6561_300.png",   "animation_type": "fade"},
-            {"page_number": 4, "text": "Le médecin l'examine doucement.",        "image_url": "https://static.arasaac.org/pictograms/6561/6561_300.png",   "animation_type": "fade"},
-            {"page_number": 5, "text": "Clara est courageuse. Bravo !",          "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-        ]
-    },
-    {
-        "title": "Ma journée à l'école", "description": "La journée de classe et ses règles",
-        "category": "school", "difficulty_level": 1,
-        "cover_url": "https://static.arasaac.org/pictograms/32446/32446_300.png",
-        "pages": [
-            {"page_number": 1, "text": "Lucas arrive à l'école le matin.",       "image_url": "https://static.arasaac.org/pictograms/32446/32446_300.png", "animation_type": "fade"},
-            {"page_number": 2, "text": "Il accroche son manteau.",               "image_url": "https://static.arasaac.org/pictograms/6478/6478_300.png",   "animation_type": "fade"},
-            {"page_number": 3, "text": "Il s'assoit à sa place.",                "image_url": "https://static.arasaac.org/pictograms/6503/6503_300.png",   "animation_type": "fade"},
-            {"page_number": 4, "text": "Il écoute la maîtresse.",               "image_url": "https://static.arasaac.org/pictograms/6556/6556_300.png",   "animation_type": "fade"},
-            {"page_number": 5, "text": "Lucas est content à l'école !",          "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-        ]
-    },
-    {
-        "title": "Demander de l'aide", "description": "Comment demander de l'aide",
-        "category": "help", "difficulty_level": 1,
-        "cover_url": "https://static.arasaac.org/pictograms/12252/12252_300.png",
-        "pages": [
-            {"page_number": 1, "text": "Sofia ne comprend pas l'exercice.",      "image_url": "https://static.arasaac.org/pictograms/7141/7141_300.png",   "animation_type": "fade"},
-            {"page_number": 2, "text": "Elle lève la main.",                     "image_url": "https://static.arasaac.org/pictograms/12252/12252_300.png", "animation_type": "fade"},
-            {"page_number": 3, "text": "Elle dit : J'ai besoin d'aide.",         "image_url": "https://static.arasaac.org/pictograms/12252/12252_300.png", "animation_type": "fade"},
-            {"page_number": 4, "text": "La maîtresse vient l'aider.",           "image_url": "https://static.arasaac.org/pictograms/6556/6556_300.png",   "animation_type": "fade"},
-            {"page_number": 5, "text": "Demander de l'aide, c'est bien !",       "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-        ]
-    },
-    {
-        "title": "Quand je suis en colère", "description": "Reconnaître et calmer la colère",
-        "category": "anger", "difficulty_level": 2,
-        "cover_url": "https://static.arasaac.org/pictograms/35567/35567_300.png",
-        "pages": [
-            {"page_number": 1, "text": "Tom est en colère.",                     "image_url": "https://static.arasaac.org/pictograms/35567/35567_300.png", "animation_type": "fade"},
-            {"page_number": 2, "text": "Son cœur bat très fort.",                "image_url": "https://static.arasaac.org/pictograms/35567/35567_300.png", "animation_type": "fade"},
-            {"page_number": 3, "text": "Il respire doucement.",                  "image_url": "https://static.arasaac.org/pictograms/31310/31310_300.png", "animation_type": "fade"},
-            {"page_number": 4, "text": "Il compte jusqu'à dix.",                 "image_url": "https://static.arasaac.org/pictograms/31310/31310_300.png", "animation_type": "fade"},
-            {"page_number": 5, "text": "Tom se sent mieux maintenant.",          "image_url": "https://static.arasaac.org/pictograms/35547/35547_300.png", "animation_type": "fade"},
-        ]
-    },
-]
-
-STORIES_DATA = STORIES_SPRINT_1_DATA
-
-
 AUDIO_DATA = [
     {
         "name": "calming", "description": "Sons apaisants pour la régulation émotionnelle",
@@ -797,7 +707,7 @@ async def seed_games(db: AsyncSession) -> None:
 
 async def seed_stories(db: AsyncSession) -> None:
     print("\n🌱 Seed Stories...\n")
-    for story_data in STORIES_DATA:
+    for story_data in STORIES_SPRINT_1_DATA:
         result = await db.execute(select(Story).where(Story.title == story_data["title"]))
         story = result.scalar_one_or_none()
         if story is None:
@@ -806,7 +716,6 @@ async def seed_stories(db: AsyncSession) -> None:
         story.title = story_data["title"]
         story.description = story_data["description"]
         story.category = story_data["category"]
-        story.difficulty_level = story_data["difficulty_level"]
         story.cover_url = await _localize_arasaac_url(story_data["cover_url"])
         story.total_pages = len(story_data["pages"])
         story.is_offline_available = True

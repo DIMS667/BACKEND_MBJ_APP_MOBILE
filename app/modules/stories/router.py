@@ -27,7 +27,6 @@ router = APIRouter()
 @router.get("/", response_model=list[StoryResponse])
 async def get_stories(
     category: Optional[str] = Query(default=None, max_length=40),
-    difficulty: Optional[int] = Query(default=None, ge=1, le=3),
     child_id: Optional[int] = Query(default=None, gt=0),
     favorites_only: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
@@ -37,7 +36,6 @@ async def get_stories(
         db,
         current_user.id,
         category,
-        difficulty,
         child_id,
         favorites_only,
     )

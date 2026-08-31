@@ -20,7 +20,6 @@ class Story(Base, TimestampMixin):
     cover_url = Column(String, nullable=True)
     category = Column(String, nullable=False)
     # greeting/turn/sharing/doctor/school/help/anger
-    difficulty_level = Column(Integer, default=1)  # 1=facile, 2=moyen, 3=difficile
     is_offline_available = Column(Boolean, default=True)
     total_pages = Column(Integer, default=0)
     is_custom = Column(Boolean, default=False, nullable=False)
