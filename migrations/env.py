@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # `alembic revision --autogenerate` ne voit qu'une partie du schéma et peut
 # proposer de supprimer les tables des modules non importés.
 from app.database import Base
-from app.modules.auth.models import User, RefreshToken  # noqa: F401
+from app.modules.auth.models import User, RefreshToken, PasswordResetCode  # noqa: F401
 from app.modules.children.models import Child, SensoryProfile, ChildPreferences  # noqa: F401
 from app.modules.communication.models import (  # noqa: F401
     PictoCategory,

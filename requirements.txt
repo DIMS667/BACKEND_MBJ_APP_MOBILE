@@ -23,3 +23,5 @@ Pillow>=10.4.0
 # Pont ASGI → WSGI : requis pour héberger FastAPI derrière Phusion Passenger
 # (cPanel/LWS ne sait servir que du WSGI, voir passenger_wsgi.py)
 a2wsgi>=1.10.0
+# Limitation de débit (brute-force login) — voir app/core/rate_limit.py
+slowapi>=0.1.9

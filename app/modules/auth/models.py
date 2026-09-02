@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Enum, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 from app.database import Base
 from app.shared.models import TimestampMixin
@@ -25,6 +25,9 @@ class User(Base, TimestampMixin):
     refresh_tokens = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )
+    password_reset_codes = relationship(
+        "PasswordResetCode", back_populates="user", cascade="all, delete-orphan"
+    )
     children = relationship(
         "Child", back_populates="parent", cascade="all, delete-orphan"
     )
@@ -38,3 +41,14 @@ class RefreshToken(Base, TimestampMixin):
     is_revoked = Column(Boolean, default=False)
 
     user = relationship("User", back_populates="refresh_tokens")
+
+
+class PasswordResetCode(Base, TimestampMixin):
+    __tablename__ = "password_reset_codes"
+
+    code = Column(String(6), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+
+    user = relationship("User", back_populates="password_reset_codes")

@@ -8,8 +8,12 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 from app.config import settings
+from app.core.rate_limit import limiter
 from app.database import engine
 from app.modules.auth.router import router as auth_router
 from app.modules.children.router import router as children_router
@@ -36,6 +40,8 @@ app = FastAPI(
     description="API pour l'application mobile éducative TSA",
     version="1.0.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── Fichiers statiques (pictos + audio gTTS) ─────────────────
 # ⚠️ Doit être AVANT add_middleware
@@ -51,6 +57,7 @@ app.add_middleware(
 # Compresse les réponses JSON/texte (rapport dashboard, listes de pictos et
 # d'histoires) — n'affecte pas le streaming audio/image, déjà binaire.
 app.add_middleware(GZipMiddleware, minimum_size=500)
+app.add_middleware(SlowAPIMiddleware)
 
 app.include_router(auth_router,          prefix="/auth",      tags=["Auth"])
 app.include_router(children_router,      prefix="/children",  tags=["Children"])

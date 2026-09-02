@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 5
     DB_POOL_RECYCLE_SECONDS: int = 1800
 
+    # Envoi d'email (réinitialisation de mot de passe) — service SMTP
+    # transactionnel externe. Laissé vide par défaut : l'app démarre sans,
+    # seul l'envoi d'email échoue tant que ce n'est pas configuré.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "no-reply@lamaisonbleuedejulien.org"
+    SMTP_FROM_NAME: str = "La Maison Bleue de Julien"
+
     @field_validator("DEBUG", mode="before")
     @classmethod
     def parse_debug(cls, value: Any) -> Any:

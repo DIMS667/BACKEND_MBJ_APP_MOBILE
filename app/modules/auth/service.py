@@ -1,12 +1,19 @@
+import random
+from datetime import datetime, timedelta
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from fastapi import HTTPException, status
+from app.core.email import send_email
 from app.core.security import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token
 )
-from .models import User, RefreshToken
+from .models import User, RefreshToken, PasswordResetCode
 from .schemas import RegisterRequest, LoginRequest
+
+# Durée de validité du code de réinitialisation envoyé par email.
+_RESET_CODE_TTL_MINUTES = 15
 
 
 async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
@@ -92,3 +99,67 @@ async def logout_user(db: AsyncSession, token: str) -> None:
     refresh = result.scalar_one_or_none()
     if refresh:
         refresh.is_revoked = True
+
+
+async def request_password_reset(db: AsyncSession, email: str) -> None:
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        # Ne révèle jamais si l'email est enregistré ou non (anti-énumération
+        # de comptes) : on répond succès dans tous les cas côté route.
+        return
+
+    code = f"{random.randint(0, 999999):06d}"
+    db.add(PasswordResetCode(
+        code=code,
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(minutes=_RESET_CODE_TTL_MINUTES),
+    ))
+    await send_email(
+        user.email,
+        "Réinitialisation de votre mot de passe",
+        f"""
+        <p>Bonjour {user.first_name},</p>
+        <p>Voici votre code de réinitialisation, valable {_RESET_CODE_TTL_MINUTES} minutes :</p>
+        <p style="font-size:28px;font-weight:bold;letter-spacing:6px;">{code}</p>
+        <p>Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email.</p>
+        <p>— L'équipe de La Maison Bleue de Julien</p>
+        """,
+    )
+
+
+async def reset_password(
+    db: AsyncSession, email: str, code: str, new_password: str
+) -> None:
+    invalid = HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail="Code invalide ou expiré.",
+    )
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise invalid
+
+    result = await db.execute(
+        select(PasswordResetCode)
+        .where(
+            PasswordResetCode.user_id == user.id,
+            PasswordResetCode.code == code,
+            PasswordResetCode.used == False,  # noqa: E712
+        )
+        .order_by(PasswordResetCode.created_at.desc())
+    )
+    reset_code = result.scalar_one_or_none()
+    if not reset_code or reset_code.expires_at < datetime.utcnow():
+        raise invalid
+
+    reset_code.used = True
+    user.hashed_password = hash_password(new_password)
+    # Sécurité : une fois le mot de passe changé, toute session déjà ouverte
+    # (sur cet appareil ou un autre) doit être forcée à se reconnecter.
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user.id)
+        .values(is_revoked=True)
+    )
