@@ -18,8 +18,6 @@ from app.database import engine
 from app.modules.auth.router import router as auth_router
 from app.modules.children.router import router as children_router
 from app.modules.communication.router import router as communication_router
-from app.modules.emotions.router import router as emotions_router
-from app.modules.routines.router import router as routines_router
 from app.modules.games.router import router as games_router
 from app.modules.stories.router import router as stories_router
 from app.modules.audio.router import router as audio_router
@@ -62,8 +60,6 @@ app.add_middleware(SlowAPIMiddleware)
 app.include_router(auth_router,          prefix="/auth",      tags=["Auth"])
 app.include_router(children_router,      prefix="/children",  tags=["Children"])
 app.include_router(communication_router, prefix="/pictos",    tags=["Communication"])
-app.include_router(emotions_router,      prefix="/emotions",  tags=["Emotions"])
-app.include_router(routines_router,      prefix="/routines",  tags=["Routines"])
 app.include_router(games_router,         prefix="/games",     tags=["Games"])
 app.include_router(stories_router,       prefix="/stories",   tags=["Stories"])
 app.include_router(audio_router,         prefix="/audio",     tags=["Audio"])

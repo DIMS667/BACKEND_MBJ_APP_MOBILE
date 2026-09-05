@@ -28,6 +28,9 @@ class User(Base, TimestampMixin):
     password_reset_codes = relationship(
         "PasswordResetCode", back_populates="user", cascade="all, delete-orphan"
     )
+    account_deletion_codes = relationship(
+        "AccountDeletionCode", back_populates="user", cascade="all, delete-orphan"
+    )
     children = relationship(
         "Child", back_populates="parent", cascade="all, delete-orphan"
     )
@@ -52,3 +55,14 @@ class PasswordResetCode(Base, TimestampMixin):
     used = Column(Boolean, default=False)
 
     user = relationship("User", back_populates="password_reset_codes")
+
+
+class AccountDeletionCode(Base, TimestampMixin):
+    __tablename__ = "account_deletion_codes"
+
+    code = Column(String(6), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+
+    user = relationship("User", back_populates="account_deletion_codes")

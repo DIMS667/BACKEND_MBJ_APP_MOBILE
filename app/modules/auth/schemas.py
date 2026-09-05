@@ -36,6 +36,10 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class ConfirmAccountDeletionRequest(BaseModel):
+    code: str
+
+
 class UserResponse(BaseModel):
     id: int
     email: str

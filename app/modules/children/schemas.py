@@ -51,14 +51,10 @@ class ChildPreferencesResponse(ChildPreferencesBase):
 # ─── Child ──────────────────────────────────────────────────────
 class ChildCreate(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=50)
-    age: int = Field(..., ge=1) # aucune limite
-    photo_url: Optional[str] = None
 
 
 class ChildUpdate(BaseModel):
     first_name: Optional[str] = Field(None, min_length=1, max_length=50)
-    age: Optional[int] = Field(None, ge=3, le=12)
-    photo_url: Optional[str] = None
     level: Optional[int] = None
 
 
@@ -66,8 +62,6 @@ class ChildResponse(BaseModel):
     id: int
     parent_id: int
     first_name: str
-    age: int
-    photo_url: Optional[str] = None
     level: int
     sensory_profile: Optional[SensoryProfileResponse] = None
     preferences: Optional[ChildPreferencesResponse] = None

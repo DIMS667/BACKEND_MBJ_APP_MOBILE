@@ -9,8 +9,6 @@ class Child(Base, TimestampMixin):
 
     parent_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     first_name = Column(String, nullable=False)
-    age = Column(Integer, nullable=False)
-    photo_url = Column(String, nullable=True)
     level = Column(Integer, default=1, nullable=False)
 
     parent = relationship("User", back_populates="children")

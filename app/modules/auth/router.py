@@ -6,6 +6,7 @@ from .schemas import (
     RegisterRequest, LoginRequest,
     TokenResponse, UserResponse, RefreshRequest,
     ForgotPasswordRequest, ResetPasswordRequest,
+    ConfirmAccountDeletionRequest,
 )
 from . import service
 
@@ -53,3 +54,24 @@ async def reset_password(
     request: Request, data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)
 ):
     await service.reset_password(db, data.email, data.code, data.new_password)
+
+
+@router.post("/delete-account/request", status_code=204)
+@limiter.limit("5/hour")
+async def request_account_deletion(
+    request: Request,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.request_account_deletion(db, current_user)
+
+
+@router.post("/delete-account/confirm", status_code=204)
+@limiter.limit("10/hour")
+async def confirm_account_deletion(
+    request: Request,
+    data: ConfirmAccountDeletionRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.confirm_account_deletion(db, current_user, data.code)

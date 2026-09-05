@@ -4,15 +4,13 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from datetime import datetime, timedelta, timezone
 from app.modules.children.models import Child
-from app.modules.emotions.models import Emotion, EmotionRecord
 from app.modules.games.models import Game, GameScore, GameProgress
-from app.modules.routines.models import Routine, RoutineSession
 from app.modules.stories.models import Story, StoryProgress
 from app.modules.communication.models import SentenceHistory, FavoritePicto
 
-# Émotions et Communication n'ont pas de "total" fini à atteindre (contrairement
-# aux routines/jeux/histoires) : leur taux de progression reflète la régularité
-# d'usage sur cette fenêtre plutôt qu'un volume figé à 100% dès le 1er usage.
+# Communication n'a pas de "total" fini à atteindre (contrairement aux
+# jeux/histoires) : son taux de progression reflète la régularité d'usage
+# sur cette fenêtre plutôt qu'un volume figé à 100% dès le 1er usage.
 PROGRESS_ENGAGEMENT_WINDOW_DAYS = 30
 
 
@@ -43,33 +41,6 @@ async def get_progress(
 ) -> dict:
     child = await _get_child(db, child_id, parent_id)
     modules = []
-
-    # ── Routines ──────────────────────────────────────────────────
-    # Un seul aller-retour : total, complétées et dernière session en une
-    # requête agrégée plutôt que trois SELECT séparés.
-    routine_agg_result = await db.execute(
-        select(
-            func.count(RoutineSession.id),
-            func.count(RoutineSession.id).filter(RoutineSession.is_completed == True),
-            func.max(RoutineSession.created_at),
-        )
-        .join(Routine)
-        .where(Routine.child_id == child_id)
-    )
-    total_sessions, completed_sessions, last_session = routine_agg_result.one()
-    total_sessions = total_sessions or 0
-    completed_sessions = completed_sessions or 0
-
-    routine_rate = round(
-        (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0, 1
-    )
-    modules.append({
-        "module_name": "Routines",
-        "total_activities": total_sessions,
-        "completed_activities": completed_sessions,
-        "completion_rate": routine_rate,
-        "last_activity": str(last_session) if last_session else None,
-    })
 
     # ── Jeux ──────────────────────────────────────────────────────
     games_progress_result = await db.execute(
@@ -135,37 +106,10 @@ async def get_progress(
         "last_activity": str(last_story) if last_story else None,
     })
 
-    # ── Emotions ──────────────────────────────────────────────────
-    # Pas de "total" à atteindre ici : le taux mesure la régularité
-    # (jours avec au moins un enregistrement) sur les 30 derniers jours,
-    # pas juste "au moins un enregistrement un jour = 100% pour toujours".
+    # ── Communication ─────────────────────────────────────────────
     engagement_since = datetime.now(timezone.utc) - timedelta(
         days=PROGRESS_ENGAGEMENT_WINDOW_DAYS
     )
-
-    emotion_agg_result = await db.execute(
-        select(
-            func.max(EmotionRecord.recorded_at),
-            func.count(
-                func.distinct(func.date(EmotionRecord.recorded_at))
-            ).filter(EmotionRecord.recorded_at >= engagement_since),
-        )
-        .where(EmotionRecord.child_id == child_id)
-    )
-    last_emotion, active_emotion_days = emotion_agg_result.one()
-    active_emotion_days = active_emotion_days or 0
-
-    modules.append({
-        "module_name": "Émotions",
-        "total_activities": PROGRESS_ENGAGEMENT_WINDOW_DAYS,
-        "completed_activities": active_emotion_days,
-        "completion_rate": round(
-            active_emotion_days / PROGRESS_ENGAGEMENT_WINDOW_DAYS * 100, 1
-        ),
-        "last_activity": str(last_emotion) if last_emotion else None,
-    })
-
-    # ── Communication ─────────────────────────────────────────────
     comm_agg_result = await db.execute(
         select(
             func.max(SentenceHistory.created_at),
@@ -243,28 +187,6 @@ async def get_stats(
         for gp in games_progress
     ]
 
-    # ── Stats routines ────────────────────────────────────────────
-    routines_result = await db.execute(
-        select(Routine)
-        .options(selectinload(Routine.sessions))
-        .where(Routine.child_id == child_id)
-    )
-    routines = routines_result.scalars().all()
-
-    routine_stats = []
-    for r in routines:
-        total = len(r.sessions)
-        completed = sum(1 for s in r.sessions if s.is_completed)
-        routine_stats.append({
-            "routine_title": r.title,
-            "type": r.type,
-            "total_sessions": total,
-            "completed_sessions": completed,
-            "completion_rate": round(
-                (completed / total * 100) if total > 0 else 0, 1
-            ),
-        })
-
     # ── Stats histoires ───────────────────────────────────────────
     stories_progress_result = await db.execute(
         select(StoryProgress)
@@ -307,97 +229,11 @@ async def get_stats(
         "games_played": len(games_progress),
         "total_game_sessions": total_game_sessions,
         "game_stats": game_stats,
-        "routines_total": len(routines),
-        "routines_completed": sum(
-            1 for r in routine_stats if r["completion_rate"] >= 80
-        ),
-        "routine_stats": routine_stats,
         "stories_started": len(stories_progress),
         "stories_completed": sum(1 for s in stories_progress if s.is_completed),
         "story_stats": story_stats,
         "sentences_built": sentences_count,
         "favorite_pictos": favorites_count,
-    }
-
-
-# ─── Tendances émotionnelles ─────────────────────────────────────
-async def get_emotion_trends(
-    db: AsyncSession, child_id: int, parent_id: int, days: int = 30
-) -> dict:
-    await _get_child(db, child_id, parent_id)
-    since = datetime.now(timezone.utc) - timedelta(days=days)
-
-    # Compter par émotion
-    result = await db.execute(
-        select(
-            Emotion.name,
-            Emotion.color,
-            Emotion.is_positive,
-            func.count(EmotionRecord.id).label("count")
-        )
-        .join(EmotionRecord, EmotionRecord.emotion_id == Emotion.id)
-        .where(
-            EmotionRecord.child_id == child_id,
-            EmotionRecord.recorded_at >= since,
-        )
-        .group_by(Emotion.id, Emotion.name, Emotion.color, Emotion.is_positive)
-        .order_by(func.count(EmotionRecord.id).desc())
-    )
-    rows = result.all()
-
-    total = sum(r.count for r in rows)
-    positive_count = sum(r.count for r in rows if r.is_positive)
-    positive_rate = round(
-        (positive_count / total * 100) if total > 0 else 0, 1
-    )
-
-    trends = [
-        {
-            "emotion_name": r.name,
-            "color": r.color,
-            "count": r.count,
-            "percentage": round((r.count / total * 100), 1) if total > 0 else 0,
-        }
-        for r in rows
-    ]
-
-    # Historique récent (30 derniers enregistrements)
-    history_result = await db.execute(
-        select(EmotionRecord, Emotion)
-        .join(Emotion, EmotionRecord.emotion_id == Emotion.id)
-        .where(
-            EmotionRecord.child_id == child_id,
-            EmotionRecord.recorded_at >= since,
-        )
-        .order_by(
-            EmotionRecord.recorded_at.desc(),
-            EmotionRecord.id.desc(),
-        )
-        .limit(30)
-    )
-    history_rows = history_result.all()
-
-    recent_history = [
-        {
-            "date": str(row.EmotionRecord.recorded_at),
-            "emotion_name": row.Emotion.name,
-            "color": row.Emotion.color,
-            "context": (
-                row.EmotionRecord.context_key
-                or row.EmotionRecord.context
-            ),
-        }
-        for row in history_rows
-    ]
-
-    return {
-        "child_id": child_id,
-        "period_days": days,
-        "total_records": total,
-        "most_frequent_emotion": trends[0]["emotion_name"] if trends else None,
-        "positive_rate": positive_rate,
-        "trends": trends,
-        "recent_history": recent_history,
     }
 
 
@@ -410,7 +246,6 @@ async def generate_report(
     # Agréger toutes les données
     progress = await get_progress(db, child_id, parent_id)
     stats = await get_stats(db, child_id, parent_id, days)
-    emotion_trends = await get_emotion_trends(db, child_id, parent_id, days)
 
     # Générer les recommandations automatiques
     recommendations = _generate_recommendations(stats)
@@ -421,13 +256,11 @@ async def generate_report(
     return {
         "child_id": child_id,
         "child_name": child.first_name,
-        "child_age": child.age,
         "generated_at": str(datetime.now(timezone.utc)),
         "period_days": days,
         "summary": summary,
         "progress": progress,
         "stats": stats,
-        "emotion_trends": emotion_trends,
         "recommendations": recommendations,
     }
 

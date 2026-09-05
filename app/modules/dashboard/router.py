@@ -6,7 +6,6 @@ from app.core.dependencies import require_role
 from .schemas import (
     ProgressResponse,
     StatsResponse,
-    EmotionTrendsResponse,
     ReportResponse,
 )
 from . import service
@@ -33,17 +32,6 @@ async def get_stats(
     current_user: User = Depends(get_current_user),
 ):
     return await service.get_stats(db, child_id, current_user.id, days)
-
-
-# ─── Tendances émotionnelles ─────────────────────────────────────
-@router.get("/{child_id}/emotions", response_model=EmotionTrendsResponse)
-async def get_emotion_trends(
-    child_id: int,
-    days: int = Query(default=30, ge=1, le=365),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    return await service.get_emotion_trends(db, child_id, current_user.id, days)
 
 
 # ─── Rapport exportable ──────────────────────────────────────────

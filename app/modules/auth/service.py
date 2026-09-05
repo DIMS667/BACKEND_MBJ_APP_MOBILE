@@ -9,11 +9,14 @@ from app.core.security import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token
 )
-from .models import User, RefreshToken, PasswordResetCode
+from .models import User, RefreshToken, PasswordResetCode, AccountDeletionCode
 from .schemas import RegisterRequest, LoginRequest
 
 # Durée de validité du code de réinitialisation envoyé par email.
 _RESET_CODE_TTL_MINUTES = 15
+
+# Durée de validité du code de confirmation de suppression de compte.
+_DELETION_CODE_TTL_MINUTES = 15
 
 
 async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
@@ -163,3 +166,51 @@ async def reset_password(
         .where(RefreshToken.user_id == user.id)
         .values(is_revoked=True)
     )
+
+
+async def request_account_deletion(db: AsyncSession, user: User) -> None:
+    code = f"{random.randint(0, 999999):06d}"
+    db.add(AccountDeletionCode(
+        code=code,
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(minutes=_DELETION_CODE_TTL_MINUTES),
+    ))
+    await send_email(
+        user.email,
+        "Confirmez la suppression de votre compte",
+        f"""
+        <p>Bonjour {user.first_name},</p>
+        <p>Vous avez demandé la suppression définitive de votre compte Maison Bleue Kids.</p>
+        <p><strong>Cette action supprime pour toujours votre compte, les profils de vos
+        enfants ainsi que toutes leurs données (progression, dessins, histoires,
+        réglages).</strong> Elle est irréversible.</p>
+        <p>Voici votre code de confirmation, valable {_DELETION_CODE_TTL_MINUTES} minutes :</p>
+        <p style="font-size:28px;font-weight:bold;letter-spacing:6px;">{code}</p>
+        <p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : votre
+        compte restera intact.</p>
+        <p>— L'équipe de La Maison Bleue de Julien</p>
+        """,
+    )
+
+
+async def confirm_account_deletion(db: AsyncSession, user: User, code: str) -> None:
+    invalid = HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail="Code invalide ou expiré.",
+    )
+
+    result = await db.execute(
+        select(AccountDeletionCode)
+        .where(
+            AccountDeletionCode.user_id == user.id,
+            AccountDeletionCode.code == code,
+            AccountDeletionCode.used == False,  # noqa: E712
+        )
+        .order_by(AccountDeletionCode.created_at.desc())
+    )
+    deletion_code = result.scalar_one_or_none()
+    if not deletion_code or deletion_code.expires_at < datetime.utcnow():
+        raise invalid
+
+    deletion_code.used = True
+    await db.delete(user)

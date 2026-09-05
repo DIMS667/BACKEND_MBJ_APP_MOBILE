@@ -27,14 +27,7 @@ from app.modules.communication.models import (  # noqa: F401
     FavoritePicto,
     PictogramMedia,
 )
-from app.modules.emotions.models import (  # noqa: F401
-    Emotion,
-    EmotionRecord,
-    CalmingActivity,
-    CalmingActivityFeedback,
-)
 from app.modules.games.models import GameCategory, Game, GameScore, GameProgress  # noqa: F401
-from app.modules.routines.models import Routine, RoutineStep, RoutineSession  # noqa: F401
 from app.modules.stories.models import (  # noqa: F401
     Story,
     StoryPage,

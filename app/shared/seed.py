@@ -16,8 +16,6 @@ from app.modules.auth.models import User, RefreshToken                        # 
 from app.modules.children.models import Child                                 # noqa
 from app.modules.communication.models import PictoCategory, Pictogram         # noqa
 from app.modules.communication.models import FavoritePicto, SentenceHistory   # noqa
-from app.modules.emotions.models import Emotion, CalmingActivity              # noqa
-from app.modules.routines.models import Routine, RoutineStep, RoutineSession  # noqa
 from app.modules.games.models import GameCategory, Game                       # noqa
 from app.modules.games.content_catalog import VERIFIED_IMAGE_IDS              # noqa
 from app.modules.stories.models import Story, StoryChoice, StoryPage          # noqa
@@ -66,128 +64,6 @@ SEED_DATA = {
         "words": ["ballon", "livre", "eau", "nourriture", "jouet", "voiture", "téléphone", "lit"]
     },
 }
-
-EMOTIONS_DATA = [
-    {"name": "joie",      "color": "#F7E3B0", "is_positive": True,  "icon_url": "https://static.arasaac.org/pictograms/35547/35547_300.png"},
-    {"name": "tristesse", "color": "#C9D8E6", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35545/35545_300.png"},
-    {"name": "colère",    "color": "#E5C3BB", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35567/35567_300.png"},
-    {"name": "peur",      "color": "#D8CFE6", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35571/35571_300.png"},
-    {"name": "fatigue",   "color": "#DCD3CB", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35537/35537_300.png"},
-    {"name": "stress",    "color": "#DFCBD9", "is_positive": False, "icon_url": "https://static.arasaac.org/pictograms/35529/35529_300.png"},
-    {"name": "calme",     "color": "#C9DFD8", "is_positive": True,  "icon_url": "https://static.arasaac.org/pictograms/31310/31310_300.png"},
-]
-
-CALMING_ACTIVITIES_DATA = [
-    {
-        "name": "Respiration douce",
-        "type": "breathing",
-        "description": "Inspire doucement, puis souffle lentement.",
-        "duration_seconds": 120,
-        "icon_url": "https://static.arasaac.org/pictograms/31310/31310_300.png",
-        "display_order": 1,
-        "is_active": True,
-    },
-    {
-        "name": "Musique apaisante",
-        "type": "music",
-        "description": "Écoute une mélodie douce à ton rythme.",
-        "duration_seconds": 180,
-        "icon_url": "https://static.arasaac.org/pictograms/24791/24791_300.png",
-        "display_order": 2,
-        "is_active": True,
-    },
-    {
-        "name": "Animation relaxante",
-        "type": "animation",
-        "description": "Regarde le mouvement calme aussi longtemps que tu veux.",
-        "duration_seconds": 60,
-        "icon_url": "https://static.arasaac.org/pictograms/31310/31310_300.png",
-        "display_order": 3,
-        "is_active": True,
-    },
-    {
-        "name": "Jeu calme",
-        "type": "game",
-        "description": "Choisis un jeu doux, sans limite de temps.",
-        "duration_seconds": 300,
-        "icon_url": "https://static.arasaac.org/pictograms/23392/23392_300.png",
-        "display_order": 4,
-        "is_active": True,
-    },
-    {
-        "name": "Presser mes mains",
-        "type": "sensory",
-        "description": "Presse tes mains, puis relâche doucement.",
-        "duration_seconds": 60,
-        "icon_url": None,
-        "display_order": 5,
-        "is_active": True,
-    },
-    {
-        "name": "Bouger doucement",
-        "type": "movement",
-        "description": "Étire ou balance ton corps doucement.",
-        "duration_seconds": 90,
-        "icon_url": None,
-        "display_order": 6,
-        "is_active": True,
-    },
-    {
-        "name": "Regarder autour de moi",
-        "type": "grounding",
-        "description": "Regarde tranquillement les choses autour de toi.",
-        "duration_seconds": 60,
-        "icon_url": None,
-        "display_order": 7,
-        "is_active": True,
-    },
-    {
-        "name": "Faire une pause au calme",
-        "type": "quiet",
-        "description": "Va au calme aussi longtemps que tu veux.",
-        "duration_seconds": 180,
-        "icon_url": None,
-        "display_order": 8,
-        "is_active": True,
-    },
-]
-
-ROUTINES_DATA = [
-    {
-        "title": "Routine du matin", "type": "morning",
-        "icon_url": "https://static.arasaac.org/pictograms/2725/2725_300.png",
-        "steps": [
-            {"order": 1, "title": "Se réveiller"},
-            {"order": 2, "title": "Se laver le visage"},
-            {"order": 3, "title": "Se brosser les dents"},
-            {"order": 4, "title": "S'habiller"},
-            {"order": 5, "title": "Prendre le petit-déjeuner"},
-            {"order": 6, "title": "Préparer son sac"},
-        ]
-    },
-    {
-        "title": "Routine du soir", "type": "evening",
-        "icon_url": "https://static.arasaac.org/pictograms/4877/4877_300.png",
-        "steps": [
-            {"order": 1, "title": "Ranger ses affaires"},
-            {"order": 2, "title": "Se laver"},
-            {"order": 3, "title": "Mettre le pyjama"},
-            {"order": 4, "title": "Lire une histoire"},
-            {"order": 5, "title": "Dormir"},
-        ]
-    },
-    {
-        "title": "Routine école", "type": "school",
-        "icon_url": "https://static.arasaac.org/pictograms/32446/32446_300.png",
-        "steps": [
-            {"order": 1, "title": "Arriver en classe"},
-            {"order": 2, "title": "Accrocher son manteau"},
-            {"order": 3, "title": "S'asseoir"},
-            {"order": 4, "title": "Sortir ses affaires"},
-            {"order": 5, "title": "Dire bonjour"},
-        ]
-    },
-]
 
 GAMES_DATA = [
     {
@@ -597,80 +473,6 @@ async def seed_communication(db: AsyncSession) -> None:
     print("🎉 Seed Communication terminé !\n")
 
 
-async def seed_emotions(db: AsyncSession) -> None:
-    print("\n🌱 Seed Emotions...\n")
-    for emotion_data in EMOTIONS_DATA:
-        emotion_data = {
-            **emotion_data,
-            "icon_url": await _localize_arasaac_url(emotion_data.get("icon_url")),
-        }
-        result = await db.execute(select(Emotion).where(Emotion.name == emotion_data["name"]))
-        emotion = result.scalar_one_or_none()
-        if emotion is None:
-            db.add(Emotion(**emotion_data))
-            print(f"   😊 Émotion créée : {emotion_data['name']}")
-            continue
-        for field, value in emotion_data.items():
-            setattr(emotion, field, value)
-        print(f"   🔄 Émotion mise à jour : {emotion_data['name']}")
-    for activity_data in CALMING_ACTIVITIES_DATA:
-        activity_data = {
-            **activity_data,
-            "icon_url": await _localize_arasaac_url(activity_data.get("icon_url")),
-        }
-        result = await db.execute(select(CalmingActivity).where(CalmingActivity.name == activity_data["name"]))
-        activity = result.scalar_one_or_none()
-        if activity is None:
-            db.add(CalmingActivity(**activity_data))
-            print(f"   🧘 Activité créée : {activity_data['name']}")
-            continue
-        for field, value in activity_data.items():
-            setattr(activity, field, value)
-        print(f"   🔄 Activité mise à jour : {activity_data['name']}")
-    await db.commit()
-    print("\n🎉 Seed Emotions terminé !\n")
-
-
-async def seed_routines(db: AsyncSession) -> None:
-    print("\n🌱 Seed Routines...\n")
-    result = await db.execute(select(Child))
-    children = result.scalars().all()
-    if not children:
-        print("   ⚠️  Aucun enfant en base — seed routines ignoré.")
-        return
-    for child in children:
-        print(f"   👦 Routines pour : {child.first_name} (id={child.id})")
-        for routine_data in ROUTINES_DATA:
-            icon_url = await _localize_arasaac_url(routine_data["icon_url"])
-            result = await db.execute(
-                select(Routine).where(Routine.child_id == child.id, Routine.type == routine_data["type"])
-            )
-            existing = result.scalar_one_or_none()
-            if existing:
-                existing.icon_url = icon_url
-                print(f"      🔄 Routine mise à jour : {routine_data['title']}")
-                continue
-            routine = Routine(
-                child_id=child.id,
-                title=routine_data["title"],
-                type=routine_data["type"],
-                icon_url=icon_url,
-                is_default=True,
-            )
-            db.add(routine)
-            await db.flush()
-            for step_data in routine_data["steps"]:
-                db.add(RoutineStep(
-                    routine_id=routine.id,
-                    order=step_data["order"],
-                    title=step_data["title"],
-                    is_default=True,
-                ))
-            print(f"      📋 Routine créée : {routine_data['title']}")
-    await db.commit()
-    print("\n🎉 Seed Routines terminé !\n")
-
-
 async def seed_games(db: AsyncSession) -> None:
     print("\n🌱 Seed Games...\n")
     for cat_data in GAMES_DATA:
@@ -797,8 +599,6 @@ async def seed_game_content_images() -> None:
 async def main():
     async with AsyncSessionLocal() as db:
         await seed_communication(db)
-        await seed_emotions(db)
-        await seed_routines(db)
         await seed_games(db)
         await seed_stories(db)
         await seed_audio(db)
