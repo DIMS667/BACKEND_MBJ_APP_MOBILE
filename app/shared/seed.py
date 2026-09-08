@@ -473,6 +473,15 @@ async def seed_communication(db: AsyncSession) -> None:
     print("🎉 Seed Communication terminé !\n")
 
 
+# Anciens titres de jeux, par titre actuel. Sert au rattrapage de
+# `seed_games()` quand le seed tourne avant la migration de renommage
+# (voir migrations/versions/a1c7d4e93b28 et b3f21a7c9d40).
+GAME_TITLE_RENAMES = {
+    "Retrouve l'image": ("Spot les différences",),
+    "Trouve l'intrus": ("Classe les objets",),
+}
+
+
 async def seed_games(db: AsyncSession) -> None:
     print("\n🌱 Seed Games...\n")
     for cat_data in GAMES_DATA:
@@ -494,6 +503,25 @@ async def seed_games(db: AsyncSession) -> None:
             game_icon_url = await _localize_arasaac_url(game_data["icon_url"])
             existing = await db.execute(select(Game).where(Game.title == game_data["title"], Game.category_id == category.id))
             game = existing.scalar_one_or_none()
+            if game is None:
+                # Le jeu porte peut-être encore son ancien titre : la migration
+                # de renommage n'a pas forcément tourné avant ce seed. Sans ce
+                # rattrapage, on créerait un doublon à côté de l'existant et la
+                # progression des enfants resterait sur l'ancienne ligne.
+                for ancien_titre in GAME_TITLE_RENAMES.get(game_data["title"], ()):
+                    legacy = await db.execute(
+                        select(Game).where(
+                            Game.title == ancien_titre,
+                            Game.category_id == category.id,
+                        )
+                    )
+                    game = legacy.scalar_one_or_none()
+                    if game is not None:
+                        game.title = game_data["title"]
+                        print(
+                            f"   ✏️  Jeu renommé : {ancien_titre} → {game_data['title']}"
+                        )
+                        break
             if game is None:
                 db.add(Game(category_id=category.id, title=game_data["title"], description=game_data["description"], icon_url=game_icon_url, min_level=game_data["min_level"], max_level=game_data["max_level"], is_offline_available=True))
                 print(f"   🎮 Jeu créé : {game_data['title']}")

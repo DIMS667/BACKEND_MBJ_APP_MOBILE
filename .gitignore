@@ -9,4 +9,13 @@ __pycache__/
 *.sqlite3
 
 storage/audio/tts/
+
+# Pictogrammes ARASAAC téléchargés par seed_game_content_images().
+# Contenu généré, pas écrit à la main : le suivre dans git faisait grossir
+# le dépôt et bloquait `git pull` dès que le serveur et un poste local en
+# généraient chacun de leur côté (git refuse d’écraser un fichier non suivi).
+# Les images sont désormais obtenues en lançant le seed sur chaque machine :
+#   python -m app.shared.seed
+storage/pictos/shared/
+
 file.txt
