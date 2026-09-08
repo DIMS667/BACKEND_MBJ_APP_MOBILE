@@ -81,7 +81,7 @@ GAMES_DATA = [
         "icon_url": "https://static.arasaac.org/pictograms/6947/6947_300.png",
         "games": [
             {"title": "Trouve l'objet",       "description": "Trouve un objet précis dans une scène",          "icon_url": "https://static.arasaac.org/pictograms/6947/6947_300.png", "min_level": 1, "max_level": 5},
-            {"title": "Spot les différences", "description": "Trouve les différences entre deux images",        "icon_url": "https://static.arasaac.org/pictograms/6564/6564_300.png", "min_level": 1, "max_level": 5},
+            {"title": "Retrouve l'image",     "description": "Repère l'image demandée parmi plusieurs",       "icon_url": "https://static.arasaac.org/pictograms/6564/6564_300.png", "min_level": 1, "max_level": 5},
         ]
     },
     {
@@ -90,7 +90,7 @@ GAMES_DATA = [
         "icon_url": "https://static.arasaac.org/pictograms/2540/2540_300.png",
         "games": [
             {"title": "Complète la suite", "description": "Complète la suite logique de formes",        "icon_url": "https://static.arasaac.org/pictograms/2540/2540_300.png", "min_level": 1, "max_level": 5},
-            {"title": "Classe les objets", "description": "Range les objets dans la bonne catégorie",   "icon_url": "https://static.arasaac.org/pictograms/9813/9813_300.png", "min_level": 1, "max_level": 5},
+            {"title": "Trouve l'intrus", "description": "Repère l'image qui ne va pas avec les autres",   "icon_url": "https://static.arasaac.org/pictograms/9813/9813_300.png", "min_level": 1, "max_level": 5},
             {"title": "Séquence routine", "description": "Remets les étapes du quotidien dans le bon ordre", "icon_url": "https://static.arasaac.org/pictograms/5898/5898_300.png", "min_level": 1, "max_level": 5},
         ]
     },

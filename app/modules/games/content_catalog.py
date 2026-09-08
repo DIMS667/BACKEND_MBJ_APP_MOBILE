@@ -5,7 +5,7 @@ from typing import Any
 from .models import Game
 
 
-CONTENT_VERSION = 3
+CONTENT_VERSION = 4
 MAX_CHALLENGE_RANK = 15
 CHALLENGES_PER_LEVEL = 3
 
@@ -155,9 +155,9 @@ FOOD = [
     _asset("food_apple", "Pomme", "🍎", "nourriture", 3062),
     _asset("food_banana", "Banane", "🍌", "nourriture", 2404),
     _asset("food_bread", "Pain", "🍞", "nourriture", 2607),
-    _asset("food_water", "Eau", "🥤", "nourriture", 5582),
+    _asset("food_water", "Eau", "💧", "nourriture", 5582),
     _asset("food_soup", "Soupe", "🥣", "nourriture", 2772),
-    _asset("food_yogurt", "Yaourt", "🥛", "nourriture", 2921),
+    _asset("food_yogurt", "Yaourt", "", "nourriture", 2921),
     _asset("food_carrot", "Carotte", "🥕", "nourriture", 2434),
     _asset("food_cookie", "Biscuit", "🍪", "nourriture", 2409),
 ]
@@ -177,7 +177,7 @@ SCHOOL = [
     _asset("school_book", "Livre", "📘", "école", 2577),
     _asset("school_pencil", "Crayon", "✏️", "école", 2674),
     _asset("school_chair", "Chaise", "🪑", "école", 2436),
-    _asset("school_table", "Table", "🧩", "école", 2779),
+    _asset("school_table", "Table", "", "école", 2779),
     _asset("school_teacher", "Maître", "👩‍🏫", "école", 2914),
     _asset("school_recess", "Récréation", "🛝", "école", 2684),
     _asset("school_bus", "Bus", "🚌", "école", 2423),
@@ -186,7 +186,7 @@ SCHOOL = [
 SCHOOL.extend(
     [
         _asset("school_notebook", "Cahier", "📓", "école", 2359),
-        _asset("school_eraser", "Gomme", "🧽", "école", 2409),
+        _asset("school_eraser", "Gomme", "", "école", 2409),
         _asset("school_scissors", "Ciseaux", "✂️", "école", 2591),
         _asset("school_ruler", "Règle", "📏", "école", 2815),
     ]
@@ -199,7 +199,7 @@ HOME = [
     _asset("home_bath", "Bain", "🛁", "maison", 2395),
     _asset("home_toothbrush", "Brosse à dents", "🪥", "maison", 2407),
     _asset("home_toy", "Jouet", "🧸", "maison", 2780),
-    _asset("home_pajamas", "Pyjama", "🌙", "maison", 2640),
+    _asset("home_pajamas", "Pyjama", "", "maison", 2640),
     _asset("home_sofa", "Canapé", "🛋️", "maison", 2429),
     _asset("home_door", "Porte", "🚪", "maison", 2678),
 ]
@@ -221,8 +221,8 @@ ACTIONS = [
     _asset("action_eat", "Manger", "🍽️", "actions", 2555),
     _asset("action_drink", "Boire", "🥤", "actions", 5582),
     _asset("action_wash", "Se laver", "🚿", "actions", 2804),
-    _asset("action_sleep", "Dormir", "🛏️", "actions", 2392),
-    _asset("action_play", "Jouer", "🧸", "actions", 2780),
+    _asset("action_sleep", "Dormir", "💤", "actions", 2392),
+    _asset("action_play", "Jouer", "⚽", "actions", 2780),
     _asset("action_read", "Lire", "📖", "actions", 2577),
     _asset("action_wait", "Attendre", "⏳", "actions", 3029),
     _asset("action_help", "Aider", "🤝", "actions", 2954),
@@ -287,7 +287,7 @@ ROUTINES = [
         "steps": [
             _asset("routine_tidy", "Ranger", "🧸", "routine", 2780),
             _asset("routine_bath", "Bain", "🛁", "routine", 2395),
-            _asset("routine_pajamas", "Pyjama", "🌙", "routine", 2640),
+            _asset("routine_pajamas", "Pyjama", "", "routine", 2640),
             _asset("routine_story", "Histoire", "📖", "routine", 2577),
             _asset("routine_sleep", "Dormir", "🛏️", "routine", 2392),
         ],
@@ -324,7 +324,7 @@ PROGRESSIVE_ROUTINES = [
         "steps": [
             _asset("routine_tidy", "Ranger", "🧸", "routine", 2872),
             _asset("routine_bath", "Prendre un bain", "🛁", "routine", 6058),
-            _asset("routine_pajamas", "Mettre le pyjama", "🌙", "routine", 2522),
+            _asset("routine_pajamas", "Mettre le pyjama", "", "routine", 2522),
             _asset("routine_brush_teeth", "Se brosser les dents", "🪥", "routine", 2326),
             _asset("routine_story", "Lire une histoire", "📖", "routine", 25191),
             _asset("routine_listen", "Écouter calmement", "👂", "routine", 6572),
@@ -381,7 +381,11 @@ def build_game_content(
         )
     elif "concentration" in normalized_category:
         content = _search_content(rng, safe_challenge_rank)
-    elif "logique" in normalized_category and "classe" in normalized_title:
+    # « classe » est l’ancien titre (« Classe les objets »), conservé pour les
+    # bases qui n’ont pas encore reçu la migration de renommage.
+    elif "logique" in normalized_category and (
+        "intrus" in normalized_title or "classe" in normalized_title
+    ):
         content = _odd_one_content(rng, safe_challenge_rank)
     elif "logique" in normalized_category:
         content = _logic_sequence_content(rng, safe_challenge_rank)
@@ -584,6 +588,18 @@ def _logic_sequence_content(rng: random.Random, challenge_rank: int) -> dict[str
     }
 
 
+# Consigne propre à chaque groupe. « Trouve l’intrus » seul n’indique pas
+# selon quelle logique juger : l’enfant doit deviner ce que les images ont
+# en commun avant de pouvoir répondre. La question nomme donc le critère.
+ODD_ONE_QUESTIONS = {
+    "Animaux": "Lequel n’est pas un animal ?",
+    "Nourriture": "Lequel ne se mange pas ?",
+    "École": "Lequel n’est pas à l’école ?",
+    "Maison": "Lequel n’est pas dans la maison ?",
+    "Actions": "Lequel n’est pas quelque chose qu’on fait ?",
+}
+
+
 def _odd_one_content(rng: random.Random, challenge_rank: int) -> dict[str, Any]:
     groups = [
         ("Animaux", ANIMALS, FOOD),
@@ -610,7 +626,7 @@ def _odd_one_content(rng: random.Random, challenge_rank: int) -> dict[str, Any]:
             {
                 "id": f"odd-one-{index + 1}",
                 "type": "odd_one_out",
-                "instruction": "Trouve l’intrus",
+                "instruction": ODD_ONE_QUESTIONS.get(theme, "Trouve l’intrus"),
                 "answer": odd,
                 "items": items,
                 "metadata": {"theme": theme},

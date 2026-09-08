@@ -1,3 +1,17 @@
+"""Contenu des histoires interactives.
+
+Chaque page et chaque choix porte un identifiant de pictogramme ARASAAC.
+Ces identifiants ont été relus un par un contre le catalogue ARASAAC
+(`https://api.arasaac.org/api/pictograms/fr/<id>`) : l’image doit
+représenter l’action ou le contexte annoncé par le texte de la page. La
+page « J’attends dans la salle d’attente » portait ainsi le pictogramme
+37336, qui est une « salle de vidéo et TV » : l’enfant voyait une
+télévision là où le texte parlait d’attente.
+
+Avant d’ajouter ou de changer un identifiant, vérifier ses mots-clés
+auprès d’ARASAAC plutôt que de le déduire d’un numéro voisin.
+"""
+
 from typing import Any
 
 
@@ -54,11 +68,11 @@ STORIES_SPRINT_1_DATA = [
                 "J'ai du mal à me motiver pour me lever.",
                 30391,
                 choices=[
-                    _choice("Compter doucement puis me lever", 2486, 3, 0),
+                    _choice("Compter doucement puis me lever", 2714, 3, 0),
                     _choice("Demander de l'aide pour démarrer", 32648, 4, 1),
                 ],
             ),
-            _page(3, "Je compte doucement puis je me lève.", 2486, next_page=5),
+            _page(3, "Je compte doucement puis je me lève.", 2714, next_page=5),
             _page(4, "Un adulte m'aide à démarrer la journée.", 32648, next_page=5),
             _page(5, "Je m'habille.", 6627),
             _page(6, "Je prends mon petit déjeuner.", 4626),
@@ -96,7 +110,7 @@ STORIES_SPRINT_1_DATA = [
         "cover_url": _picto(6561),
         "pages": [
             _page(1, "Je vais chez le médecin.", 6561),
-            _page(2, "J'attends dans la salle d'attente.", 37336),
+            _page(2, "J'attends dans la salle d'attente.", 36914),
             _page(
                 3,
                 "L'attente peut sembler longue.",
@@ -149,13 +163,13 @@ STORIES_SPRINT_1_DATA = [
             _page(
                 5,
                 "Je peux choisir comment le dire.",
-                30391,
+                30510,
                 choices=[
-                    _choice("Le dire avec des mots", 32648, 6, 0),
+                    _choice("Le dire avec des mots", 6517, 6, 0),
                     _choice("Respirer avant de le dire", 2486, 7, 1),
                 ],
             ),
-            _page(6, "Je dis mon émotion avec des mots simples.", 32648, next_page=8),
+            _page(6, "Je dis mon émotion avec des mots simples.", 6517, next_page=8),
             _page(7, "Je respire, puis je trouve les mots.", 2486, next_page=8),
             _page(8, "Je peux dire ce que je ressens.", 31408),
         ],
@@ -360,7 +374,7 @@ STORIES_SPRINT_1_DATA = [
             _page(
                 3,
                 "Si c'est difficile, je choisis une solution.",
-                30391,
+                30510,
                 choices=[
                     _choice("Demander de l'aide", 32648, 4, 0),
                     _choice("Commencer doucement", 2326, 5, 1),
