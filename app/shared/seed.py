@@ -538,8 +538,21 @@ async def seed_games(db: AsyncSession) -> None:
 async def seed_stories(db: AsyncSession) -> None:
     print("\n🌱 Seed Stories...\n")
     for story_data in STORIES_SPRINT_1_DATA:
-        result = await db.execute(select(Story).where(Story.title == story_data["title"]))
-        story = result.scalar_one_or_none()
+        # Restreint au catalogue (une histoire personnalisee d'un parent peut
+        # porter le meme titre) et tolerant aux doublons : `scalar_one_or_none`
+        # levait une exception des qu'une base en contenait deux, faisant
+        # echouer tout le seed au lieu de reprendre la ligne d'origine. La
+        # migration c5d83e11f742 nettoie les doublons deja crees.
+        result = await db.execute(
+            select(Story)
+            .where(
+                Story.title == story_data["title"],
+                Story.owner_id.is_(None),
+                Story.child_id.is_(None),
+            )
+            .order_by(Story.id)
+        )
+        story = result.scalars().first()
         if story is None:
             story = Story()
             db.add(story)
