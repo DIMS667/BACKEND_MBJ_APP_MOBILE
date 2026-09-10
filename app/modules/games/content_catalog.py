@@ -32,7 +32,11 @@ VERIFIED_IMAGE_IDS = {
     "food_yogurt": 2618,
     "food_carrot": 2619,
     "food_cookie": 8312,
-    "food_orange": 2888,
+    # 2888 est l'« orange » de la catégorie ARASAAC `color` : une tache de
+    # couleur, pas le fruit. Dans « Lequel ne se mange pas ? » elle était
+    # présentée parmi des aliments. 2483 est le fruit (catégories `fruit`,
+    # `food`).
+    "food_orange": 2483,
     "food_strawberry": 2400,
     "food_pear": 2561,
     "food_milk": 2445,
@@ -164,7 +168,7 @@ FOOD = [
 
 FOOD.extend(
     [
-        _asset("food_orange", "Orange", "🍊", "nourriture", 2888),
+        _asset("food_orange", "Orange", "🍊", "nourriture", 2483),
         _asset("food_strawberry", "Fraise", "🍓", "nourriture", 2400),
         _asset("food_pear", "Poire", "🍐", "nourriture", 2561),
         _asset("food_milk", "Lait", "🥛", "nourriture", 2445),
