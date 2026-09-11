@@ -12,9 +12,33 @@ class ModuleProgressItem(BaseModel):
 
 
 class ProgressResponse(BaseModel):
+    """Progression d'un enfant, en trois mesures distinctes.
+
+    Un pourcentage global unique remplaçait ces trois-là : c'était la
+    moyenne de ratios qui ne mesurent pas la même chose — maîtrise d'un
+    jeu, découverte du catalogue et régularité d'usage. Chacune est
+    désormais publiée avec son numérateur et son dénominateur, pour
+    qu'aucune ne puisse être lue pour une autre.
+    """
+
     child_id: int
     child_name: str
-    global_completion_rate: float
+
+    # Ce qui a été essayé, rapporté à ce qui existe.
+    discovery_rate: float
+    discovery_done: int
+    discovery_total: int
+
+    # Parmi les jeux essayés, ceux menés au niveau maximum.
+    mastery_rate: float
+    mastery_done: int
+    mastery_total: int
+
+    # Jours où l'enfant a composé au moins une phrase, sur la fenêtre.
+    regularity_rate: float
+    regularity_done: int
+    regularity_total: int
+
     modules: List[ModuleProgressItem]
 
 

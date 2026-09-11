@@ -133,13 +133,50 @@ async def get_progress(
     })
 
     # ── Taux global ───────────────────────────────────────────────
-    rates = [m["completion_rate"] for m in modules if m["total_activities"] > 0]
-    global_rate = round(sum(rates) / len(rates), 1) if rates else 0.0
+    # ── Trois mesures distinctes, au lieu d'un pourcentage global ──
+    #
+    # Le taux global était la moyenne de trois ratios qui ne mesurent pas
+    # la même chose :
+    #   - jeux    : jeux maîtrisés / jeux **déjà commencés**
+    #   - histoires : histoires terminées / **tout le catalogue**
+    #   - Je dis  : jours actifs / fenêtre d'engagement (une fréquence)
+    #
+    # En faire la moyenne produisait un nombre sans signification : un
+    # enfant ayant essayé un seul jeu et l'ayant maîtrisé pesait 100 % sur
+    # ce volet. Les trois mesures sont désormais publiées séparément, avec
+    # leurs numérateurs et dénominateurs, pour que chacune soit lisible.
+
+    # Découverte : ce que l'enfant a essayé, rapporté à ce qui existe.
+    total_games_result = await db.execute(select(func.count(Game.id)))
+    total_games = total_games_result.scalar() or 0
+    activites_disponibles = total_games + total_stories
+    activites_essayees = len(games_progress) + len(stories_progress)
+    discovery_rate = round(
+        (activites_essayees / activites_disponibles * 100)
+        if activites_disponibles else 0,
+        1,
+    )
+
+    # Maîtrise : parmi les jeux essayés, ceux menés au niveau maximum.
+    mastery_rate = game_rate
+
+    # Régularité : jours où l'enfant a composé au moins une phrase.
+    regularity_rate = round(
+        active_comm_days / PROGRESS_ENGAGEMENT_WINDOW_DAYS * 100, 1
+    )
 
     return {
         "child_id": child_id,
         "child_name": child.first_name,
-        "global_completion_rate": global_rate,
+        "discovery_rate": discovery_rate,
+        "discovery_done": activites_essayees,
+        "discovery_total": activites_disponibles,
+        "mastery_rate": mastery_rate,
+        "mastery_done": mastered_games,
+        "mastery_total": len(games_progress),
+        "regularity_rate": regularity_rate,
+        "regularity_done": active_comm_days,
+        "regularity_total": PROGRESS_ENGAGEMENT_WINDOW_DAYS,
         "modules": modules,
     }
 
@@ -302,16 +339,30 @@ async def generate_report(
 
 
 def _generate_summary(name: str, progress: dict) -> str:
-    rate = progress["global_completion_rate"]
+    """Résumé en clair, sans pourcentage global.
 
-    if rate >= 80:
-        progress_text = f"{name} progresse très bien dans l'ensemble des activités"
-    elif rate >= 50:
-        progress_text = f"{name} progresse régulièrement dans les activités"
-    else:
-        progress_text = f"{name} commence à explorer les activités"
+    L'ancien résumé annonçait « X % de complétion » à partir d'une moyenne
+    de ratios incomparables. Il décrit maintenant ce qui est réellement
+    compté : ce qui a été essayé, et ce qui a été mené au bout.
+    """
+    essayees = progress["discovery_done"]
+    disponibles = progress["discovery_total"]
+    maitrises = progress["mastery_done"]
+    essayes_jeux = progress["mastery_total"]
 
-    return f"{progress_text} ({rate}% de complétion)."
+    if essayees == 0:
+        return f"{name} n'a pas encore commencé d'activité."
+
+    phrase = (
+        f"{name} a essayé {essayees} activités sur les {disponibles} "
+        f"disponibles"
+    )
+    if essayes_jeux:
+        phrase += (
+            f", et mené {maitrises} jeu(x) sur {essayes_jeux} jusqu'au "
+            f"dernier niveau"
+        )
+    return phrase + "."
 
 
 def _generate_recommendations(stats: dict) -> list:
