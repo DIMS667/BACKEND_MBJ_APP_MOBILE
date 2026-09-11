@@ -38,19 +38,33 @@ class StoryStatsItem(BaseModel):
 
 
 class StatsResponse(BaseModel):
+    """Statistiques d'un enfant.
+
+    Les champs sont séparés en deux familles, parce que les mélanger
+    rendait le filtre de période trompeur : un parent choisissait
+    « 7 jours » et quatre chiffres sur cinq ne bougeaient pas.
+    """
+
     child_id: int
     period_days: int
-    # Jeux
+
+    # ── Sur la période choisie (7, 30 ou 90 jours) ────────────────
     games_played: int
     total_game_sessions: int
-    game_stats: List[GameStatsItem]
-    # Histoires
     stories_started: int
     stories_completed: int
-    story_stats: List[StoryStatsItem]
-    # Communication
     sentences_built: int
+
+    # ── Cumuls depuis le début, et préférences actuelles ──────────
+    all_time_game_sessions: int
+    all_time_games_played: int
+    all_time_stories_started: int
+    all_time_stories_completed: int
     favorite_pictos: int
+
+    # ── Détail par activité (cumul) ───────────────────────────────
+    game_stats: List[GameStatsItem]
+    story_stats: List[StoryStatsItem]
 
 
 # ─── Rapport exportable ──────────────────────────────────────────

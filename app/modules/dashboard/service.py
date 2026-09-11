@@ -162,7 +162,23 @@ async def get_stats(
     )
     games_progress = games_progress_result.scalars().all()
 
-    total_game_sessions = sum(g.total_plays for g in games_progress)
+    # Cumul depuis toujours : distinct des chiffres de la période plus bas.
+    total_game_sessions_all_time = sum(g.total_plays for g in games_progress)
+
+    # Sur la période : chaque ligne de GameScore est une partie jouée.
+    # `total_plays` de GameProgress est un compteur cumulatif, il ne peut
+    # pas répondre à « ces 7 derniers jours » — c'est ce qui faisait que
+    # le filtre de période ne changeait presque aucun chiffre.
+    period_sessions_result = await db.execute(
+        select(
+            func.count(GameScore.id),
+            func.count(func.distinct(GameScore.game_id)),
+        ).where(
+            GameScore.child_id == child_id,
+            GameScore.created_at >= since,
+        )
+    )
+    game_sessions_in_period, games_played_in_period = period_sessions_result.one()
 
     # Une seule requête groupée par jeu plutôt qu'un SELECT AVG par jeu joué.
     avg_scores_result = await db.execute(
@@ -223,17 +239,37 @@ async def get_stats(
     )
     favorites_count = favorites_result.scalar() or 0
 
+    # Une histoire « lue sur la période » est une progression touchée dans
+    # la fenêtre. `updated_at` est nul tant que la ligne n'a pas été
+    # modifiée, d'où le repli sur `created_at`.
+    def _touchee_dans_la_periode(progress) -> bool:
+        horodatage = progress.updated_at or progress.created_at
+        return horodatage is not None and horodatage >= since
+
+    stories_in_period = [sp for sp in stories_progress if _touchee_dans_la_periode(sp)]
+
     return {
         "child_id": child_id,
         "period_days": days,
-        "games_played": len(games_progress),
-        "total_game_sessions": total_game_sessions,
-        "game_stats": game_stats,
-        "stories_started": len(stories_progress),
-        "stories_completed": sum(1 for s in stories_progress if s.is_completed),
-        "story_stats": story_stats,
+        # ── Sur la période choisie ────────────────────────────────
+        "games_played": games_played_in_period,
+        "total_game_sessions": game_sessions_in_period,
+        "stories_started": len(stories_in_period),
+        "stories_completed": sum(1 for sp in stories_in_period if sp.is_completed),
         "sentences_built": sentences_count,
+        # ── Cumuls depuis le début, et préférences actuelles ───────
+        # Présentés à part : mélangés aux chiffres de période, ils
+        # donnaient l'impression que le filtre ne servait à rien.
+        "all_time_game_sessions": total_game_sessions_all_time,
+        "all_time_games_played": len(games_progress),
+        "all_time_stories_started": len(stories_progress),
+        "all_time_stories_completed": sum(
+            1 for sp in stories_progress if sp.is_completed
+        ),
         "favorite_pictos": favorites_count,
+        # ── Détail par activité (cumul) ───────────────────────────
+        "game_stats": game_stats,
+        "story_stats": story_stats,
     }
 
 
@@ -279,33 +315,44 @@ def _generate_summary(name: str, progress: dict) -> str:
 
 
 def _generate_recommendations(stats: dict) -> list:
+    """Suggestions fondées sur l'activité **de la période choisie**.
+
+    Les chiffres lus ici décrivent la fenêtre demandée : les phrases le
+    disent, pour qu'une suggestion ne paraisse pas contredire un cumul
+    affiché ailleurs (« 30 sessions » depuis le début, mais aucune ces
+    sept derniers jours).
+    """
     recommendations = []
+    jours = stats.get("period_days", 30)
 
     # Recommandation jeux
     if stats["total_game_sessions"] < 5:
         recommendations.append(
-            "Encourager l'enfant à explorer les jeux éducatifs "
-            "pour développer ses capacités cognitives."
+            f"Sur les {jours} derniers jours, peu de parties ont été jouées. "
+            "Proposer les jeux éducatifs pour développer les capacités "
+            "cognitives."
         )
 
     # Recommandation histoires
     if stats["stories_completed"] == 0 and stats["stories_started"] > 0:
         recommendations.append(
-            "Accompagner l'enfant pour terminer les histoires commencées "
-            "afin de renforcer les apprentissages sociaux."
+            f"Des histoires ont été ouvertes ces {jours} derniers jours sans "
+            "être terminées. Accompagner l'enfant jusqu'au bout renforce les "
+            "apprentissages sociaux."
         )
 
     # Recommandation communication
     if stats["sentences_built"] == 0:
         recommendations.append(
-            "Explorer le module de communication par pictogrammes "
-            "pour développer l'expression de l'enfant."
+            f"Aucune phrase composée sur les {jours} derniers jours. Explorer "
+            "le module de communication par pictogrammes pour développer "
+            "l'expression de l'enfant."
         )
 
     if not recommendations:
         recommendations.append(
-            f"L'enfant progresse bien sur tous les modules. "
-            "Continuer à maintenir une pratique régulière et bienveillante."
+            f"Activité régulière sur tous les modules ces "
+            f"{jours} derniers jours. Continuer ainsi."
         )
 
     return recommendations
