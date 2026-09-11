@@ -8,6 +8,9 @@ class ModuleProgressItem(BaseModel):
     total_activities: int
     completed_activities: int
     completion_rate: float      # pourcentage
+    # Ce que la barre compte réellement : les trois modules n'ont pas le
+    # même dénominateur (jeux essayés, catalogue entier, fenêtre de jours).
+    detail_label: str = ""
     last_activity: Optional[str] = None
 
 

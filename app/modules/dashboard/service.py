@@ -73,6 +73,7 @@ async def get_progress(
         "total_activities": len(games_progress),
         "completed_activities": mastered_games,
         "completion_rate": game_rate,
+        "detail_label": "jeux menés au dernier niveau, parmi ceux essayés",
         "last_activity": str(last_game) if last_game else None,
     })
 
@@ -103,6 +104,7 @@ async def get_progress(
         "total_activities": total_stories,
         "completed_activities": completed_stories,
         "completion_rate": story_rate,
+        "detail_label": "histoires terminées, sur tout le catalogue",
         "last_activity": str(last_story) if last_story else None,
     })
 
@@ -128,6 +130,9 @@ async def get_progress(
         "completed_activities": active_comm_days,
         "completion_rate": round(
             active_comm_days / PROGRESS_ENGAGEMENT_WINDOW_DAYS * 100, 1
+        ),
+        "detail_label": (
+            f"jours avec une phrase, sur {PROGRESS_ENGAGEMENT_WINDOW_DAYS}"
         ),
         "last_activity": str(last_sentence) if last_sentence else None,
     })
@@ -321,7 +326,7 @@ async def generate_report(
     stats = await get_stats(db, child_id, parent_id, days)
 
     # Générer les recommandations automatiques
-    recommendations = _generate_recommendations(stats)
+    recommendations = _generate_recommendations(stats, progress)
 
     # Résumé global
     summary = _generate_summary(child.first_name, progress)
@@ -353,19 +358,22 @@ def _generate_summary(name: str, progress: dict) -> str:
     if essayees == 0:
         return f"{name} n'a pas encore commencé d'activité."
 
+    activite = "activité" if essayees == 1 else "activités"
     phrase = (
-        f"{name} a essayé {essayees} activités sur les {disponibles} "
+        f"{name} a essayé {essayees} {activite} sur les {disponibles} "
         f"disponibles"
     )
     if essayes_jeux:
+        jeu = "jeu" if maitrises == 1 else "jeux"
+        mene = "mené" if maitrises == 1 else "menés"
         phrase += (
-            f", et mené {maitrises} jeu(x) sur {essayes_jeux} jusqu'au "
+            f", et {mene} {maitrises} {jeu} sur {essayes_jeux} jusqu'au "
             f"dernier niveau"
         )
     return phrase + "."
 
 
-def _generate_recommendations(stats: dict) -> list:
+def _generate_recommendations(stats: dict, progress: dict) -> list:
     """Suggestions fondées sur l'activité **de la période choisie**.
 
     Les chiffres lus ici décrivent la fenêtre demandée : les phrases le
@@ -398,6 +406,20 @@ def _generate_recommendations(stats: dict) -> list:
             f"Aucune phrase composée sur les {jours} derniers jours. Explorer "
             "le module de communication par pictogrammes pour développer "
             "l'expression de l'enfant."
+        )
+
+    # Régularité : elle se lit sur la fenêtre d'engagement, pas sur la
+    # période choisie. Sans ce contrôle, le message de repli affirmait
+    # « activité régulière sur tous les modules » à un parent dont
+    # l'enfant n'avait été actif que 2 jours sur 30 — une contradiction
+    # avec les chiffres affichés juste au-dessus.
+    jours_actifs = progress.get("regularity_done", 0)
+    fenetre = progress.get("regularity_total", 0)
+    if fenetre and jours_actifs * 3 < fenetre:
+        recommendations.append(
+            f"Je dis n'a été utilisé que {jours_actifs} jour(s) sur "
+            f"{fenetre}. Quelques minutes régulières valent mieux qu'une "
+            f"longue séance isolée."
         )
 
     if not recommendations:
