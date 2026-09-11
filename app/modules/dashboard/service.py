@@ -358,14 +358,14 @@ def _generate_summary(name: str, progress: dict) -> str:
     if essayees == 0:
         return f"{name} n'a pas encore commencé d'activité."
 
-    activite = "activité" if essayees == 1 else "activités"
+    activite = "activité" if essayees <= 1 else "activités"
     phrase = (
         f"{name} a essayé {essayees} {activite} sur les {disponibles} "
         f"disponibles"
     )
     if essayes_jeux:
-        jeu = "jeu" if maitrises == 1 else "jeux"
-        mene = "mené" if maitrises == 1 else "menés"
+        jeu = "jeu" if maitrises <= 1 else "jeux"
+        mene = "mené" if maitrises <= 1 else "menés"
         phrase += (
             f", et {mene} {maitrises} {jeu} sur {essayes_jeux} jusqu'au "
             f"dernier niveau"
@@ -417,9 +417,10 @@ def _generate_recommendations(stats: dict, progress: dict) -> list:
     fenetre = progress.get("regularity_total", 0)
     if fenetre and jours_actifs * 3 < fenetre:
         recommendations.append(
-            f"Je dis n'a été utilisé que {jours_actifs} jour(s) sur "
-            f"{fenetre}. Quelques minutes régulières valent mieux qu'une "
-            f"longue séance isolée."
+            f"Je dis n'a été utilisé que {jours_actifs} "
+            f"{'jour' if jours_actifs <= 1 else 'jours'} sur {fenetre}. "
+            f"Quelques minutes régulières valent mieux qu'une longue "
+            f"séance isolée."
         )
 
     if not recommendations:
