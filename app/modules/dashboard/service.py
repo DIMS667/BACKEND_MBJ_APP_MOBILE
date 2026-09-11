@@ -415,28 +415,32 @@ def _generate_recommendations(stats: dict, progress: dict) -> list:
     recommendations = []
     jours = stats.get("period_days", 30)
 
-    # Recommandation jeux
+    # Chaque suggestion énonce d'abord **ce qui a été compté**, puis propose
+    # une exploration. Les formulations précédentes promettaient de
+    # « développer les capacités cognitives », « renforcer les apprentissages
+    # sociaux » ou « développer l'expression » : des effets que
+    # l'application ne mesure pas, et qui donnaient à un comptage d'usage
+    # l'apparence d'une évaluation de l'enfant.
+
     if stats["total_game_sessions"] < 5:
         recommendations.append(
-            f"Sur les {jours} derniers jours, peu de parties ont été jouées. "
-            "Proposer les jeux éducatifs pour développer les capacités "
-            "cognitives."
+            f"{stats['total_game_sessions']} {'partie' if stats['total_game_sessions'] <= 1 else 'parties'} sur les {jours} "
+            f"derniers jours. Les jeux non encore essayés sont visibles dans "
+            f"le catalogue, classés par catégorie."
         )
 
-    # Recommandation histoires
     if stats["stories_completed"] == 0 and stats["stories_started"] > 0:
         recommendations.append(
-            f"Des histoires ont été ouvertes ces {jours} derniers jours sans "
-            "être terminées. Accompagner l'enfant jusqu'au bout renforce les "
-            "apprentissages sociaux."
+            f"{stats['stories_started']} {'histoire ouverte' if stats['stories_started'] <= 1 else 'histoires ouvertes'} ces {jours} "
+            f"derniers jours, aucune terminée. La reprise se fait à la page "
+            f"où l'enfant s'est arrêté."
         )
 
-    # Recommandation communication
     if stats["sentences_built"] == 0:
         recommendations.append(
-            f"Aucune phrase composée sur les {jours} derniers jours. Explorer "
-            "le module de communication par pictogrammes pour développer "
-            "l'expression de l'enfant."
+            f"Aucune phrase composée sur les {jours} derniers jours. Je dis "
+            f"peut s'utiliser à deux, en choisissant les pictogrammes "
+            f"ensemble."
         )
 
     # Régularité : elle se lit sur la fenêtre d'engagement, pas sur la
@@ -448,16 +452,17 @@ def _generate_recommendations(stats: dict, progress: dict) -> list:
     fenetre = progress.get("regularity_total", 0)
     if fenetre and jours_actifs * 3 < fenetre:
         recommendations.append(
-            f"Je dis n'a été utilisé que {jours_actifs} "
+            f"Je dis a été utilisé {jours_actifs} "
             f"{'jour' if jours_actifs <= 1 else 'jours'} sur {fenetre}. "
-            f"Quelques minutes régulières valent mieux qu'une longue "
-            f"séance isolée."
+            f"Des séances courtes et rapprochées sont plus faciles à "
+            f"installer dans une journée qu'une longue séance isolée."
         )
 
     if not recommendations:
         recommendations.append(
-            f"Activité régulière sur tous les modules ces "
-            f"{jours} derniers jours. Continuer ainsi."
+            f"Les quatre modules ont été utilisés ces {jours} "
+            f"derniers jours. Rien de particulier à signaler dans les "
+            f"chiffres."
         )
 
     return recommendations
