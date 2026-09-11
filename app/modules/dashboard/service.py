@@ -7,6 +7,7 @@ from app.modules.children.models import Child
 from app.modules.games.models import Game, GameScore, GameProgress
 from app.modules.stories.models import Story, StoryProgress
 from app.modules.communication.models import SentenceHistory, FavoritePicto
+from app.modules.drawing.models import Drawing
 
 # Communication n'a pas de "total" fini à atteindre (contrairement aux
 # jeux/histoires) : son taux de progression reflète la régularité d'usage
@@ -281,6 +282,32 @@ async def get_stats(
     )
     favorites_count = favorites_result.scalar() or 0
 
+    # ── Dessins ───────────────────────────────────────────────────
+    #
+    # Le module Dessin n'apparaissait nulle part dans le suivi. On compte
+    # les créations enregistrées, en distinguant le dessin libre du
+    # coloriage (`template_key` nul ou non) : rien qui juge le résultat,
+    # seulement ce que l'enfant a produit.
+    #
+    # Pas de taux de complétion : il n'y a rien à « terminer » en dessin,
+    # et inventer un dénominateur reproduirait le pourcentage sans
+    # signification retiré par DASH-01.
+    drawings_result = await db.execute(
+        select(
+            func.count(Drawing.id),
+            func.count(Drawing.id).filter(Drawing.template_key.is_(None)),
+        ).where(
+            Drawing.child_id == child_id,
+            Drawing.created_at >= since,
+        )
+    )
+    drawings_in_period, free_drawings_in_period = drawings_result.one()
+
+    all_drawings_result = await db.execute(
+        select(func.count(Drawing.id)).where(Drawing.child_id == child_id)
+    )
+    all_time_drawings = all_drawings_result.scalar() or 0
+
     # Une histoire « lue sur la période » est une progression touchée dans
     # la fenêtre. `updated_at` est nul tant que la ligne n'a pas été
     # modifiée, d'où le repli sur `created_at`.
@@ -299,6 +326,9 @@ async def get_stats(
         "stories_started": len(stories_in_period),
         "stories_completed": sum(1 for sp in stories_in_period if sp.is_completed),
         "sentences_built": sentences_count,
+        "drawings_created": drawings_in_period,
+        "free_drawings": free_drawings_in_period,
+        "coloring_drawings": drawings_in_period - free_drawings_in_period,
         # ── Cumuls depuis le début, et préférences actuelles ───────
         # Présentés à part : mélangés aux chiffres de période, ils
         # donnaient l'impression que le filtre ne servait à rien.
@@ -308,6 +338,7 @@ async def get_stats(
         "all_time_stories_completed": sum(
             1 for sp in stories_progress if sp.is_completed
         ),
+        "all_time_drawings": all_time_drawings,
         "favorite_pictos": favorites_count,
         # ── Détail par activité (cumul) ───────────────────────────
         "game_stats": game_stats,

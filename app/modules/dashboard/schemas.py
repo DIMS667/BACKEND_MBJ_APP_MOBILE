@@ -82,11 +82,17 @@ class StatsResponse(BaseModel):
     stories_completed: int
     sentences_built: int
 
+    # Dessin : des comptages, pas un taux — il n'y a rien à « terminer ».
+    drawings_created: int = 0
+    free_drawings: int = 0
+    coloring_drawings: int = 0
+
     # ── Cumuls depuis le début, et préférences actuelles ──────────
     all_time_game_sessions: int
     all_time_games_played: int
     all_time_stories_started: int
     all_time_stories_completed: int
+    all_time_drawings: int = 0
     favorite_pictos: int
 
     # ── Détail par activité (cumul) ───────────────────────────────
