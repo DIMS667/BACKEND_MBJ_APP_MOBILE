@@ -1,18 +1,12 @@
 import pytest
 from pydantic import ValidationError
 
-from app.modules.stories.schemas import CustomStoryUpsert
+from app.modules.stories.schemas import StoryCatalogEntry
 from app.modules.stories.story_catalog import STORIES_SPRINT_1_DATA
 
 
-def _validate(story: dict, index: int = 0) -> CustomStoryUpsert:
-    return CustomStoryUpsert.model_validate(
-        {
-            "client_uuid": f"catalog-story-{index:02d}",
-            "child_id": 1,
-            **story,
-        }
-    )
+def _validate(story: dict, index: int = 0) -> StoryCatalogEntry:
+    return StoryCatalogEntry.model_validate(story)
 
 
 def test_catalog_covers_all_social_themes():
@@ -74,12 +68,10 @@ def test_catalog_choices_only_move_forward_to_existing_pages():
         ],
     ],
 )
-def test_custom_story_graph_rejects_loops_and_missing_pages(pages):
+def test_catalog_graph_rejects_loops_and_missing_pages(pages):
     with pytest.raises(ValidationError):
-        CustomStoryUpsert.model_validate(
+        StoryCatalogEntry.model_validate(
             {
-                "client_uuid": "invalid-story-graph",
-                "child_id": 1,
                 "title": "Une histoire invalide",
                 "description": "Test",
                 "category": "custom",

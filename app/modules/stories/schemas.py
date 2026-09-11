@@ -65,38 +65,6 @@ class StoryDetailResponse(StoryResponse):
     pages: list[StoryPageResponse] = Field(default_factory=list)
 
 
-class CustomStoryUpsert(BaseModel):
-    client_uuid: str = Field(min_length=12, max_length=64)
-    child_id: int = Field(gt=0)
-    title: str = Field(min_length=3, max_length=120)
-    description: str = Field(default="", max_length=500)
-    category: str = Field(min_length=2, max_length=40)
-    cover_url: Optional[str] = Field(default=None, max_length=500)
-    pages: list[StoryPageInput] = Field(min_length=2, max_length=30)
-
-    @model_validator(mode="after")
-    def validate_story_graph(self):
-        numbers = sorted(page.page_number for page in self.pages)
-        expected = list(range(1, len(self.pages) + 1))
-        if numbers != expected:
-            raise ValueError("Les pages doivent être numérotées sans interruption.")
-
-        for page in self.pages:
-            if page.next_page_number is not None and (
-                page.next_page_number <= page.page_number
-                or page.next_page_number > len(self.pages)
-            ):
-                raise ValueError("La page suivante configurée est invalide.")
-            for choice in page.choices:
-                if choice.next_page_number <= page.page_number:
-                    raise ValueError(
-                        "Un choix doit mener vers une page suivante pour éviter les boucles."
-                    )
-                if choice.next_page_number > len(self.pages):
-                    raise ValueError("Un choix pointe vers une page inexistante.")
-        return self
-
-
 class StoryProgressCreate(BaseModel):
     child_id: int = Field(gt=0)
     last_page: int = Field(ge=1, le=30)
@@ -135,13 +103,48 @@ class StoryFavoriteResponse(BaseModel):
     is_favorite: bool
 
 
-class StoryMediaResponse(BaseModel):
-    id: int
-    client_uuid: str
-    media_url: str
-    content_type: str
-
-
 class StorySyncSummary(BaseModel):
     story: StoryDetailResponse
     server_state: dict[str, Any] = Field(default_factory=dict)
+
+
+class StoryCatalogEntry(BaseModel):
+    """Contrôle de forme d'une histoire du catalogue livré.
+
+    Ces règles venaient de `CustomStoryUpsert`, le schéma des histoires
+    créées par un parent. Cette fonctionnalité a été retirée, mais la
+    validation du graphe reste utile : elle garantit que les histoires
+    servies aux enfants sont numérotées sans trou et que chaque choix mène
+    vers une page existante, plus loin dans le récit. Un choix qui revient
+    en arrière enfermerait l'enfant dans une boucle.
+
+    Elle ne sert qu'aux tests du catalogue ; aucune route ne l'expose.
+    """
+
+    title: str = Field(min_length=3, max_length=120)
+    description: str = Field(default="", max_length=500)
+    category: str = Field(min_length=2, max_length=40)
+    cover_url: Optional[str] = Field(default=None, max_length=500)
+    pages: list[StoryPageInput] = Field(min_length=2, max_length=30)
+
+    @model_validator(mode="after")
+    def validate_story_graph(self):
+        numbers = sorted(page.page_number for page in self.pages)
+        expected = list(range(1, len(self.pages) + 1))
+        if numbers != expected:
+            raise ValueError("Les pages doivent être numérotées sans interruption.")
+
+        for page in self.pages:
+            if page.next_page_number is not None and (
+                page.next_page_number <= page.page_number
+                or page.next_page_number > len(self.pages)
+            ):
+                raise ValueError("La page suivante configurée est invalide.")
+            for choice in page.choices:
+                if choice.next_page_number <= page.page_number:
+                    raise ValueError(
+                        "Un choix doit mener vers une page suivante pour éviter les boucles."
+                    )
+                if choice.next_page_number > len(self.pages):
+                    raise ValueError("Un choix pointe vers une page inexistante.")
+        return self

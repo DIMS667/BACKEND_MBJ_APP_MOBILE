@@ -18,7 +18,7 @@ from .models import (
     StoryPage,
     StoryProgress,
 )
-from .schemas import CustomStoryUpsert, StoryProgressCreate
+from .schemas import StoryProgressCreate
 
 
 MAX_STORY_IMAGE_BYTES = 8 * 1024 * 1024
@@ -73,39 +73,6 @@ def _mark_favorite(story: Story, favorite_ids: set[int]) -> Story:
     return story
 
 
-def _private_media_ids(urls: set[str | None]) -> set[int]:
-    prefix = "/stories/media/"
-    media_ids: set[int] = set()
-    for url in urls:
-        if not url or not url.startswith(prefix):
-            continue
-        raw_id = url.removeprefix(prefix).split("?", 1)[0]
-        if raw_id.isdigit():
-            media_ids.add(int(raw_id))
-    return media_ids
-
-
-async def _delete_private_media(
-    db: AsyncSession,
-    media_ids: set[int],
-    parent_id: int,
-) -> None:
-    if not media_ids:
-        return
-    result = await db.execute(
-        select(StoryMedia).where(
-            StoryMedia.id.in_(media_ids),
-            StoryMedia.owner_id == parent_id,
-        )
-    )
-    for media in result.scalars().all():
-        try:
-            Path(media.file_path).unlink(missing_ok=True)
-        except OSError:
-            pass
-        await db.delete(media)
-
-
 async def get_all_stories(
     db: AsyncSession,
     parent_id: int,
@@ -158,126 +125,6 @@ async def get_story_detail(
         )
     favorite_ids = await _favorite_ids(db, child_id)
     return _mark_favorite(story, favorite_ids)
-
-
-async def upsert_custom_story(
-    db: AsyncSession,
-    data: CustomStoryUpsert,
-    parent_id: int,
-) -> Story:
-    await _check_child_ownership(db, data.child_id, parent_id)
-
-    result = await db.execute(
-        select(Story).where(
-            Story.client_uuid == data.client_uuid,
-            Story.owner_id == parent_id,
-        )
-    )
-    story = result.scalar_one_or_none()
-    old_media_urls: set[str | None] = set()
-    if story is None:
-        story = Story(
-            client_uuid=data.client_uuid,
-            owner_id=parent_id,
-            child_id=data.child_id,
-            is_custom=True,
-            is_offline_available=True,
-        )
-        db.add(story)
-        await db.flush()
-    elif not story.is_custom:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cet identifiant est déjà utilisé.",
-        )
-    else:
-        old_page_result = await db.execute(
-            select(StoryPage.image_url).where(StoryPage.story_id == story.id)
-        )
-        old_media_urls = set(old_page_result.scalars().all())
-        old_media_urls.add(story.cover_url)
-
-    story.title = data.title.strip()
-    story.description = data.description.strip()
-    story.category = data.category.strip().lower()
-    story.child_id = data.child_id
-    story.total_pages = len(data.pages)
-    story.cover_url = data.cover_url or next(
-        (
-            page.image_url or page.pictogram_url
-            for page in data.pages
-            if page.image_url or page.pictogram_url
-        ),
-        "",
-    )
-
-    await db.execute(delete(StoryPage).where(StoryPage.story_id == story.id))
-    await db.flush()
-
-    for page_data in sorted(data.pages, key=lambda item: item.page_number):
-        page = StoryPage(
-            story_id=story.id,
-            page_number=page_data.page_number,
-            text=page_data.text.strip(),
-            image_url=page_data.image_url,
-            pictogram_url=page_data.pictogram_url,
-            audio_url=page_data.audio_url,
-            animation_type=page_data.animation_type,
-            local_page_key=page_data.local_page_key,
-            next_page_number=page_data.next_page_number,
-        )
-        db.add(page)
-        await db.flush()
-        for choice_data in sorted(
-            page_data.choices,
-            key=lambda item: item.sort_order,
-        ):
-            db.add(
-                StoryChoice(
-                    page_id=page.id,
-                    label=choice_data.label.strip(),
-                    pictogram_url=choice_data.pictogram_url,
-                    next_page_number=choice_data.next_page_number,
-                    sort_order=choice_data.sort_order,
-                )
-            )
-
-    new_media_urls = {data.cover_url}
-    new_media_urls.update(page.image_url for page in data.pages)
-    removed_media_ids = _private_media_ids(old_media_urls) - _private_media_ids(
-        new_media_urls
-    )
-    await _delete_private_media(db, removed_media_ids, parent_id)
-    await db.flush()
-    return await get_story_detail(db, story.id, parent_id, data.child_id)
-
-
-async def delete_custom_story(
-    db: AsyncSession,
-    client_uuid: str,
-    parent_id: int,
-) -> None:
-    result = await db.execute(
-        select(Story).where(
-            Story.client_uuid == client_uuid,
-            Story.owner_id == parent_id,
-            Story.is_custom.is_(True),
-        )
-    )
-    story = result.scalar_one_or_none()
-    if story is None:
-        return
-    page_result = await db.execute(
-        select(StoryPage.image_url).where(StoryPage.story_id == story.id)
-    )
-    media_urls = set(page_result.scalars().all())
-    media_urls.add(story.cover_url)
-    await _delete_private_media(
-        db,
-        _private_media_ids(media_urls),
-        parent_id,
-    )
-    await db.delete(story)
 
 
 async def save_progress(
@@ -384,71 +231,6 @@ async def set_favorite(
         "child_id": child_id,
         "is_favorite": is_favorite,
     }
-
-
-def _validate_image_signature(content: bytes, content_type: str) -> bool:
-    if content_type == "image/jpeg":
-        return content.startswith(b"\xff\xd8\xff")
-    if content_type == "image/png":
-        return content.startswith(b"\x89PNG\r\n\x1a\n")
-    if content_type == "image/webp":
-        return content.startswith(b"RIFF") and content[8:12] == b"WEBP"
-    return False
-
-
-async def save_private_media(
-    db: AsyncSession,
-    upload: UploadFile,
-    client_uuid: str,
-    parent_id: int,
-) -> StoryMedia:
-    content_type = upload.content_type or ""
-    extension = ALLOWED_IMAGE_TYPES.get(content_type)
-    if extension is None:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Format accepté : JPEG, PNG ou WebP.",
-        )
-
-    content = await upload.read(MAX_STORY_IMAGE_BYTES + 1)
-    if len(content) > MAX_STORY_IMAGE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="L'image ne doit pas dépasser 8 Mo.",
-        )
-    if not _validate_image_signature(content, content_type):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Le contenu du fichier image est invalide.",
-        )
-
-    existing_result = await db.execute(
-        select(StoryMedia).where(
-            StoryMedia.client_uuid == client_uuid,
-            StoryMedia.owner_id == parent_id,
-        )
-    )
-    existing = existing_result.scalar_one_or_none()
-    if existing is not None:
-        return existing
-
-    owner_directory = PRIVATE_MEDIA_ROOT / str(parent_id)
-    owner_directory.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid4().hex}{extension}"
-    file_path = owner_directory / filename
-    async with aiofiles.open(file_path, "wb") as output:
-        await output.write(content)
-
-    media = StoryMedia(
-        owner_id=parent_id,
-        client_uuid=client_uuid,
-        file_path=str(file_path),
-        content_type=content_type,
-        original_name=upload.filename,
-    )
-    db.add(media)
-    await db.flush()
-    return media
 
 
 async def get_private_media(
