@@ -18,8 +18,42 @@ _RESET_CODE_TTL_MINUTES = 15
 # Durée de validité du code de confirmation de suppression de compte.
 _DELETION_CODE_TTL_MINUTES = 15
 
+# ─── Règle de mot de passe ───────────────────────────────────────────
+#
+# Le serveur n'imposait **rien** : `password: str`, sans contrainte. Le
+# formulaire d'inscription annonçait pourtant « 8 caractères minimum, dont
+# 1 chiffre » tout en n'en refusant que moins de 6, et l'écran de
+# réinitialisation promettait « au moins 6 caractères ». Trois règles
+# différentes pour une seule exigence, dont la plus visible était fausse :
+# un parent lisant la consigne et saisissant « abcdef » obtenait un compte.
+#
+# La règle vit désormais ici, et le message est écrit une seule fois pour
+# que le refus dise exactement ce que la consigne annonce.
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_RULE_MESSAGE = (
+    "Le mot de passe doit contenir au moins "
+    f"{PASSWORD_MIN_LENGTH} caractères, dont au moins 1 chiffre."
+)
+
+
+def ensure_password_is_strong_enough(password: str) -> None:
+    """Refuse un mot de passe trop faible, avec le message de la consigne.
+
+    Ne s'applique qu'à la **création** d'un mot de passe (inscription,
+    réinitialisation) : la connexion ne revalide rien, sans quoi un compte
+    créé avant cette règle deviendrait inaccessible à son propriétaire.
+    """
+    if len(password) < PASSWORD_MIN_LENGTH or not any(
+        caractere.isdigit() for caractere in password
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=PASSWORD_RULE_MESSAGE,
+        )
+
 
 async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
+    ensure_password_is_strong_enough(data.password)
     result = await db.execute(select(User).where(User.email == data.email))
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -134,6 +168,11 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
 async def reset_password(
     db: AsyncSession, email: str, code: str, new_password: str
 ) -> None:
+    # Avant toute lecture en base : un mot de passe refusé ne doit pas
+    # consommer le code reçu par email, sinon le parent devrait en demander
+    # un nouveau pour une simple faute de saisie.
+    ensure_password_is_strong_enough(new_password)
+
     invalid = HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail="Code invalide ou expiré.",
