@@ -9,6 +9,7 @@ __pycache__/
 *.sqlite3
 
 storage/audio/tts/
+private_storage/
 
 # Pictogrammes ARASAAC téléchargés par seed_game_content_images().
 # Contenu généré, pas écrit à la main : le suivre dans git faisait grossir

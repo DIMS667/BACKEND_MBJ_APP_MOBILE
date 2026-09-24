@@ -65,6 +65,22 @@ class StoryDetailResponse(StoryResponse):
     pages: list[StoryPageResponse] = Field(default_factory=list)
 
 
+class PublicStoryResponse(BaseModel):
+    """Catalogue partagé : aucune donnée de compte, d'enfant ou de favori."""
+
+    id: int
+    title: str
+    description: str = ""
+    cover_url: str = ""
+    category: str
+    is_offline_available: bool
+    total_pages: int
+
+
+class PublicStoryDetailResponse(PublicStoryResponse):
+    pages: list[StoryPageResponse] = Field(default_factory=list)
+
+
 class StoryProgressCreate(BaseModel):
     child_id: int = Field(gt=0)
     last_page: int = Field(ge=1, le=30)

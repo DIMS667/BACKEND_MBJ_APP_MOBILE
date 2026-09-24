@@ -10,6 +10,8 @@ from app.modules.auth.models import User
 from . import service
 from .schemas import (
     ChildStoriesProgressResponse,
+    PublicStoryDetailResponse,
+    PublicStoryResponse,
     StoryDetailResponse,
     StoryFavoriteRequest,
     StoryFavoriteResponse,
@@ -20,6 +22,22 @@ from .schemas import (
 
 
 router = APIRouter()
+
+
+@router.get("/public", response_model=list[PublicStoryResponse])
+async def get_public_stories(
+    category: Optional[str] = Query(default=None, max_length=40),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.get_public_stories(db, category)
+
+
+@router.get("/public/{story_id}", response_model=PublicStoryDetailResponse)
+async def get_public_story_detail(
+    story_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.get_public_story_detail(db, story_id)
 
 
 @router.get("/", response_model=list[StoryResponse])

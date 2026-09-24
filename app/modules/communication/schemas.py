@@ -52,6 +52,26 @@ class PictogramResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PublicPictoCategoryResponse(BaseModel):
+    """Champs du catalogue commun utilisables sans profil enfant."""
+
+    id: int
+    name: str
+    icon_url: str = ""
+    color: str
+    order: int
+    is_default: bool = True
+
+
+class PublicPictogramResponse(BaseModel):
+    id: int
+    category_id: int
+    label: str
+    image_url: str
+    audio_url: str = ""
+    is_default: bool = True
+
+
 class CustomPictogramUpsert(BaseModel):
     client_uuid: str = Field(
         min_length=12,

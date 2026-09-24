@@ -24,6 +24,8 @@ from .schemas import (
     PictoCategoryResponse,
     PictogramMediaResponse,
     PictogramResponse,
+    PublicPictoCategoryResponse,
+    PublicPictogramResponse,
     SetFavoriteRequest,
     SentenceHistoryResponse,
     SpeechRequest,
@@ -34,6 +36,19 @@ from .schemas import (
 
 
 router = APIRouter()
+
+
+@router.get("/public/categories", response_model=List[PublicPictoCategoryResponse])
+async def get_public_categories(db: AsyncSession = Depends(get_db)):
+    return await service.get_public_categories(db)
+
+
+@router.get("/public", response_model=List[PublicPictogramResponse])
+async def get_public_pictograms(
+    category_id: Optional[int] = Query(default=None, gt=0),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.get_public_pictograms(db, category_id)
 
 
 @router.get("/categories", response_model=List[PictoCategoryResponse])

@@ -56,6 +56,98 @@ def _story_access_clause(parent_id: int):
     return or_(Story.is_custom.is_(False), Story.owner_id == parent_id)
 
 
+def _public_media_url(url: str | None) -> str | None:
+    """Do not leak a private media path through a malformed catalog entry."""
+    if not url:
+        return None
+    if url.startswith((
+        "/storage/pictos/",
+        "/storage/audio/",
+        "https://static.arasaac.org/pictograms/",
+    )):
+        return url
+    return None
+
+
+def _public_story_payload(story: Story, *, include_pages: bool = False) -> dict:
+    payload = {
+        "id": story.id,
+        "title": story.title,
+        "description": story.description or "",
+        "cover_url": _public_media_url(story.cover_url) or "",
+        "category": story.category,
+        "is_offline_available": bool(story.is_offline_available),
+        "total_pages": story.total_pages,
+    }
+    if include_pages:
+        payload["pages"] = [
+            {
+                "id": page.id,
+                "story_id": story.id,
+                "page_number": page.page_number,
+                "text": page.text,
+                "image_url": _public_media_url(page.image_url),
+                "pictogram_url": _public_media_url(page.pictogram_url),
+                "audio_url": _public_media_url(page.audio_url),
+                "animation_type": page.animation_type or "fade",
+                "local_page_key": page.local_page_key,
+                "next_page_number": page.next_page_number,
+                "choices": [
+                    {
+                        "id": choice.id,
+                        "label": choice.label,
+                        "pictogram_url": _public_media_url(choice.pictogram_url),
+                        "next_page_number": choice.next_page_number,
+                        "sort_order": choice.sort_order,
+                    }
+                    for choice in page.choices
+                ],
+            }
+            for page in story.pages
+        ]
+    return payload
+
+
+async def get_public_stories(
+    db: AsyncSession,
+    category: str | None = None,
+) -> list[dict]:
+    # Unauthenticated reads must never reuse the family-aware query: only
+    # global seed content belongs here, not a parent's custom story.
+    query = select(Story).where(
+        Story.is_custom.is_(False),
+        Story.owner_id.is_(None),
+        Story.child_id.is_(None),
+    )
+    if category:
+        query = query.where(Story.category == category)
+    result = await db.execute(query.order_by(Story.category, Story.title))
+    return [_public_story_payload(story) for story in result.scalars().all()]
+
+
+async def get_public_story_detail(
+    db: AsyncSession,
+    story_id: int,
+) -> dict:
+    result = await db.execute(
+        select(Story)
+        .options(selectinload(Story.pages).selectinload(StoryPage.choices))
+        .where(
+            Story.id == story_id,
+            Story.is_custom.is_(False),
+            Story.owner_id.is_(None),
+            Story.child_id.is_(None),
+        )
+    )
+    story = result.scalar_one_or_none()
+    if story is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Histoire introuvable.",
+        )
+    return _public_story_payload(story, include_pages=True)
+
+
 async def _favorite_ids(
     db: AsyncSession,
     child_id: int | None,

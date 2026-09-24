@@ -114,6 +114,74 @@ def _pictogram_payload(
     }
 
 
+def _public_media_url(url: str | None) -> str:
+    """The public catalog cannot expose links to parent-owned media."""
+    if not url:
+        return ""
+    if url.startswith((
+        "/storage/pictos/",
+        "/storage/audio/",
+        "https://static.arasaac.org/pictograms/",
+    )):
+        return url
+    return ""
+
+
+async def get_public_categories(db: AsyncSession) -> list[dict]:
+    result = await db.execute(
+        select(PictoCategory)
+        .where(
+            PictoCategory.is_default.is_(True),
+            PictoCategory.owner_id.is_(None),
+            PictoCategory.child_id.is_(None),
+        )
+        .order_by(PictoCategory.order, PictoCategory.name)
+    )
+    return [
+        {
+            "id": category.id,
+            "name": category.name,
+            "icon_url": _public_media_url(category.icon_url),
+            "color": category.color,
+            "order": category.order or 0,
+            "is_default": True,
+        }
+        for category in result.scalars().all()
+    ]
+
+
+async def get_public_pictograms(
+    db: AsyncSession,
+    category_id: int | None = None,
+) -> list[dict]:
+    query = (
+        select(Pictogram)
+        .join(PictoCategory, Pictogram.category_id == PictoCategory.id)
+        .where(
+            Pictogram.is_default.is_(True),
+            Pictogram.owner_id.is_(None),
+            Pictogram.child_id.is_(None),
+            PictoCategory.is_default.is_(True),
+            PictoCategory.owner_id.is_(None),
+            PictoCategory.child_id.is_(None),
+        )
+    )
+    if category_id is not None:
+        query = query.where(Pictogram.category_id == category_id)
+    result = await db.execute(query.order_by(Pictogram.label))
+    return [
+        {
+            "id": pictogram.id,
+            "category_id": pictogram.category_id,
+            "label": pictogram.label,
+            "image_url": _public_media_url(pictogram.image_url),
+            "audio_url": _public_media_url(pictogram.audio_url),
+            "is_default": True,
+        }
+        for pictogram in result.scalars().all()
+    ]
+
+
 async def _favorite_ids(db: AsyncSession, child_id: int) -> set[int]:
     result = await db.execute(
         select(FavoritePicto.picto_id).where(
