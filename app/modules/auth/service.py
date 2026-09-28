@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from fastapi import HTTPException, status
 from app.core.email import send_email
+from app.core.user_data_cleanup import collect_account_files, finish_account_cleanup
 from app.core.security import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token
@@ -252,4 +253,9 @@ async def confirm_account_deletion(db: AsyncSession, user: User, code: str) -> N
         raise invalid
 
     deletion_code.used = True
+    child_files, pictogram_paths, story_paths = await collect_account_files(db, user.id)
     await db.delete(user)
+    await db.flush()
+    await finish_account_cleanup(
+        db, user.id, child_files, pictogram_paths, story_paths
+    )

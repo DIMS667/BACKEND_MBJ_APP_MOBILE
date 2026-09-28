@@ -143,6 +143,7 @@ async def upload_pictogram_media(
         max_length=64,
         pattern=CLIENT_UUID_PATTERN,
     ),
+    child_id: int | None = Form(default=None, gt=0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -151,6 +152,7 @@ async def upload_pictogram_media(
         image,
         client_uuid,
         current_user.id,
+        child_id=child_id,
     )
     return PictogramMediaResponse(
         id=media.id,

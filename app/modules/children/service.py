@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
+from app.core.user_data_cleanup import collect_child_files, finish_child_cleanup
 from .models import Child, SensoryProfile, ChildPreferences
 from .schemas import (
     ChildCreate, ChildUpdate,
@@ -116,7 +117,10 @@ async def delete_child(
     db: AsyncSession, child_id: int, parent_id: int
 ) -> None:
     child = await _get_child_owned_by(db, child_id, parent_id)
+    files = await collect_child_files(db, child_id, parent_id)
     await db.delete(child)
+    await db.flush()
+    await finish_child_cleanup(db, files, parent_id)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -178,6 +182,7 @@ async def delete_child_data(
 ) -> dict:
     """Supprime toutes les données comportementales de l'enfant (RGPD)."""
     await _get_child_owned_by(db, child_id, parent_id)
+    files = await collect_child_files(db, child_id, parent_id, include_creations=False)
 
     # Import local pour éviter les imports circulaires
     from app.modules.games.models import GameScore, GameProgress
@@ -210,4 +215,5 @@ async def delete_child_data(
     )
 
     await db.flush()
+    await finish_child_cleanup(db, files, parent_id, include_creations=False)
     return {"deleted": True, "child_id": child_id}

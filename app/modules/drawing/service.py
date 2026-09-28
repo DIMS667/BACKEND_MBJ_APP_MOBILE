@@ -8,6 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.storage_cleanup import (
+    queue_created_file_on_rollback,
+    queue_private_file_deletion,
+)
 from app.modules.children.models import Child
 
 from .models import Drawing
@@ -101,6 +105,7 @@ async def save_drawing(
     file_path = child_directory / f"{uuid.uuid4().hex}.png"
     async with aiofiles.open(file_path, "wb") as output:
         await output.write(content)
+    queue_created_file_on_rollback(db, file_path, child_directory)
 
     drawing = Drawing(
         child_id=child_id,
@@ -144,9 +149,12 @@ async def delete_drawing(
     if drawing is None:
         return
     await _check_child_ownership(db, drawing.child_id, parent_id)
-    try:
-        Path(drawing.image_url).unlink(missing_ok=True)
-    except OSError:
-        pass
     await db.delete(drawing)
     await db.flush()
+    remaining = await db.execute(
+        select(Drawing.id).where(Drawing.image_url == drawing.image_url).limit(1)
+    )
+    if remaining.first() is None:
+        queue_private_file_deletion(
+            db, drawing.image_url, DRAWINGS_ROOT / str(drawing.child_id)
+        )

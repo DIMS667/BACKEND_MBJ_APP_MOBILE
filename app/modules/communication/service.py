@@ -11,6 +11,10 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.storage_cleanup import (
+    queue_created_file_on_rollback,
+    queue_private_file_deletion,
+)
 from app.modules.children.models import Child
 
 from .models import (
@@ -417,6 +421,11 @@ async def upsert_custom_pictogram(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="L’image privée est invalide ou inaccessible.",
         )
+    if media.child_id is not None and media.child_id != data.child_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cette image appartient à un autre profil enfant.",
+        )
 
     result = await db.execute(
         select(Pictogram).where(
@@ -637,14 +646,21 @@ async def generate_speech(
         parent_id,
     )
 
-    audio_dir = Path(settings.STORAGE_PATH) / "audio" / "tts"
+    # A per-child folder lets profile deletion remove a generated file even
+    # if the worker crashed before its SentenceHistory row was committed.
+    audio_dir = Path(settings.STORAGE_PATH).resolve() / "audio" / "tts" / str(data.child_id)
     audio_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{uuid.uuid4()}.mp3"
     filepath = audio_dir / filename
     tts = gTTS(text=data.sentence_text, lang="fr", slow=False)
-    await asyncio.to_thread(tts.save, str(filepath))
+    try:
+        await asyncio.to_thread(tts.save, str(filepath))
+    except Exception:
+        filepath.unlink(missing_ok=True)
+        raise
+    queue_created_file_on_rollback(db, filepath, audio_dir)
 
-    audio_url = f"/storage/audio/tts/{filename}"
+    audio_url = f"/storage/audio/tts/{data.child_id}/{filename}"
     history = SentenceHistory(
         child_id=data.child_id,
         sentence_pictos=data.picto_ids,
@@ -773,7 +789,10 @@ async def save_private_media(
     upload: UploadFile,
     client_uuid: str,
     parent_id: int,
+    child_id: int | None = None,
 ) -> PictogramMedia:
+    if child_id is not None:
+        await _check_child_ownership(db, child_id, parent_id)
     content_type = upload.content_type or ""
     extension = ALLOWED_IMAGE_TYPES.get(content_type)
     if extension is None:
@@ -807,16 +826,37 @@ async def save_private_media(
     )
     existing = existing_result.scalar_one_or_none()
     if existing is not None:
+        if child_id is not None and existing.child_id not in (None, child_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cette image appartient à un autre profil enfant.",
+            )
+        if child_id is not None and existing.child_id is None:
+            usage = await db.execute(
+                select(Pictogram.child_id).where(
+                    Pictogram.image_url == f"/pictos/media/{existing.id}"
+                )
+            )
+            if any(used_by != child_id for used_by in usage.scalars().all()):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Cette image appartient à un autre profil enfant.",
+                )
+            existing.child_id = child_id
         return existing
 
     owner_directory = PRIVATE_MEDIA_ROOT / str(parent_id)
+    if child_id is not None:
+        owner_directory = owner_directory / str(child_id)
     owner_directory.mkdir(parents=True, exist_ok=True)
     file_path = owner_directory / f"{uuid.uuid4().hex}{extension}"
     async with aiofiles.open(file_path, "wb") as output:
         await output.write(content)
+    queue_created_file_on_rollback(db, file_path, owner_directory)
 
     media = PictogramMedia(
         owner_id=parent_id,
+        child_id=child_id,
         client_uuid=client_uuid,
         file_path=str(file_path),
         content_type=content_type,
@@ -850,17 +890,32 @@ async def _delete_private_media_if_unused(
     media_url = f"/pictos/media/{media_id}"
     usage_result = await db.execute(
         select(Pictogram.id).where(
-            Pictogram.image_url == media_url,
+            or_(Pictogram.image_url == media_url, Pictogram.audio_url == media_url),
             Pictogram.id != excluding_picto_id,
         )
     )
     if usage_result.first() is not None:
         return
+    category_usage = await db.execute(
+        select(PictoCategory.id).where(PictoCategory.icon_url == media_url).limit(1)
+    )
+    if category_usage.first() is not None:
+        return
     media = await _get_owned_media(db, media_id, parent_id)
     if media is None:
         return
-    try:
-        Path(media.file_path).unlink(missing_ok=True)
-    except OSError:
-        pass
     await db.delete(media)
+    await db.flush()
+    duplicate = await db.execute(
+        select(PictogramMedia.id)
+        .where(PictogramMedia.file_path == media.file_path)
+        .limit(1)
+    )
+    if duplicate.first() is None:
+        owner_directory = PRIVATE_MEDIA_ROOT / str(parent_id)
+        media_directory = Path(media.file_path).parent
+        if media_directory.parent == owner_directory and media_directory.name.isdecimal():
+            owner_directory = media_directory
+        queue_private_file_deletion(
+            db, media.file_path, owner_directory
+        )

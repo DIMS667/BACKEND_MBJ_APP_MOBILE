@@ -119,6 +119,12 @@ class PictogramMedia(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    child_id = Column(
+        Integer,
+        ForeignKey("children.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     client_uuid = Column(String(64), nullable=False)
     file_path = Column(String, nullable=False)
     content_type = Column(String(40), nullable=False)
