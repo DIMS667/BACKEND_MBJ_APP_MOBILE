@@ -1,12 +1,15 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_authenticated_user
 from app.core.rate_limit import limiter
 from .schemas import (
     RegisterRequest, LoginRequest,
     TokenResponse, UserResponse, RefreshRequest,
     ForgotPasswordRequest, ResetPasswordRequest,
     ConfirmAccountDeletionRequest,
+    ChildSyncChoice, ChildSyncStatus,
 )
 from . import service
 
@@ -36,8 +39,23 @@ async def logout(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(current_user=Depends(get_current_user)):
+async def me(current_user=Depends(get_authenticated_user)):
     return current_user
+
+
+@router.get("/child-sync", response_model=ChildSyncStatus)
+async def get_child_sync(current_user=Depends(get_authenticated_user)):
+    return {"enabled": current_user.child_sync_enabled}
+
+
+@router.put("/child-sync", response_model=ChildSyncStatus)
+async def set_child_sync(
+    data: ChildSyncChoice,
+    current_user=Depends(get_authenticated_user),
+):
+    current_user.child_sync_enabled = data.enabled
+    current_user.child_sync_choice_at = datetime.now(timezone.utc)
+    return {"enabled": data.enabled}
 
 
 @router.post("/forgot-password", status_code=204)
@@ -60,7 +78,7 @@ async def reset_password(
 @limiter.limit("5/hour")
 async def request_account_deletion(
     request: Request,
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ):
     await service.request_account_deletion(db, current_user)
@@ -71,7 +89,7 @@ async def request_account_deletion(
 async def confirm_account_deletion(
     request: Request,
     data: ConfirmAccountDeletionRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_authenticated_user),
     db: AsyncSession = Depends(get_db),
 ):
     await service.confirm_account_deletion(db, current_user, data.code)

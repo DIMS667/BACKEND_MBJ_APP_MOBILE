@@ -256,29 +256,20 @@ async def test_delete_child_activity_data_removes_tts_but_keeps_creations(databa
 
 
 @pytest.mark.asyncio
-async def test_generated_tts_is_removed_on_rollback(database, monkeypatch):
+async def test_child_sentence_stays_on_server_without_external_audio(database):
     session, db, root = database
     parent = _parent(session, "tts@example.org")
     child = _child(session, parent, "TTS")
     session.commit()
 
-    class FakeTTS:
-        def __init__(self, **_kwargs):
-            pass
-
-        def save(self, path):
-            Path(path).write_bytes(b"audio")
-
-    monkeypatch.setattr(communication_service, "gTTS", FakeTTS)
     payload = await communication_service.generate_speech(
         db, SpeechRequest(child_id=child.id, sentence_text="Bonjour", picto_ids=[]), parent.id
     )
-    assert f"/tts/{child.id}/" in payload["audio_url"]
-    file_path = root / payload["audio_url"].lstrip("/")
-    assert file_path.exists()
+    assert payload == {"sentence_text": "Bonjour", "audio_url": ""}
+    assert not (root / "storage" / "audio" / "tts" / str(child.id)).exists()
+    assert session.scalar(select(SentenceHistory.sentence_text).where(SentenceHistory.child_id == child.id)) == "Bonjour"
     session.rollback()
 
-    assert not file_path.exists()
     assert session.scalar(select(SentenceHistory.id).where(SentenceHistory.child_id == child.id)) is None
 
 

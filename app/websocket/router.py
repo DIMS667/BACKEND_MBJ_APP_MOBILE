@@ -31,7 +31,7 @@ async def _authenticate_ws(
         select(User).where(User.id == int(user_id))
     )
     user = user_result.scalar_one_or_none()
-    if not user or not user.is_active:
+    if not user or not user.is_active or not user.child_sync_enabled:
         return False
 
     # Vérifier que l'enfant appartient à cet utilisateur

@@ -21,6 +21,8 @@ class User(Base, TimestampMixin):
     role = Column(Enum(UserRole), default=UserRole.PARENT, nullable=False)
     photo_url = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+    child_sync_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    child_sync_choice_at = Column(DateTime(timezone=True), nullable=True)
 
     refresh_tokens = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"

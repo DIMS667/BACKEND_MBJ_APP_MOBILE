@@ -9,7 +9,7 @@ from app.modules.auth.models import User, UserRole
 security = HTTPBearer()
 
 
-async def get_current_user(
+async def get_authenticated_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User:
@@ -27,6 +27,19 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Utilisateur introuvable."
+        )
+    return user
+
+
+async def get_current_user(
+    user: User = Depends(get_authenticated_user),
+) -> User:
+    # Les routes privées chargent ou enregistrent des données enfant. Le
+    # choix de synchronisation doit être appliqué aussi aux anciens APK.
+    if not user.child_sync_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Synchronisation des données enfant désactivée.",
         )
     return user
 

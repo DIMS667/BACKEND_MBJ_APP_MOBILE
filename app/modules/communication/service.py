@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from collections import Counter
 from pathlib import Path
@@ -6,7 +5,6 @@ from typing import Iterable
 
 import aiofiles
 from fastapi import HTTPException, UploadFile, status
-from gtts import gTTS
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -646,21 +644,10 @@ async def generate_speech(
         parent_id,
     )
 
-    # A per-child folder lets profile deletion remove a generated file even
-    # if the worker crashed before its SentenceHistory row was committed.
-    audio_dir = Path(settings.STORAGE_PATH).resolve() / "audio" / "tts" / str(data.child_id)
-    audio_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid.uuid4()}.mp3"
-    filepath = audio_dir / filename
-    tts = gTTS(text=data.sentence_text, lang="fr", slow=False)
-    try:
-        await asyncio.to_thread(tts.save, str(filepath))
-    except Exception:
-        filepath.unlink(missing_ok=True)
-        raise
-    queue_created_file_on_rollback(db, filepath, audio_dir)
-
-    audio_url = f"/storage/audio/tts/{data.child_id}/{filename}"
+    # Une phrase construite par un enfant pouvait être envoyée à un service
+    # vocal externe. Le client la prononce désormais sur l'appareil ; le
+    # serveur conserve seulement l'historique demandé par le parent.
+    audio_url = ""
     history = SentenceHistory(
         child_id=data.child_id,
         sentence_pictos=data.picto_ids,

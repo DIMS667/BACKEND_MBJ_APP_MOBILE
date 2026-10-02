@@ -40,6 +40,14 @@ class ConfirmAccountDeletionRequest(BaseModel):
     code: str
 
 
+class ChildSyncChoice(BaseModel):
+    enabled: bool
+
+
+class ChildSyncStatus(BaseModel):
+    enabled: bool
+
+
 class UserResponse(BaseModel):
     id: int
     email: str
@@ -48,5 +56,6 @@ class UserResponse(BaseModel):
     role: UserRole
     photo_url: Optional[str] = None
     is_active: bool
+    child_sync_enabled: bool
 
     model_config = {"from_attributes": True}
